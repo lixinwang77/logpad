@@ -1,0 +1,16 @@
+/* General */
+"Open File" = "Open File";
+"Error" = "Error";
+"Loading..." = "Loading...";
+"Empty file" = "Empty file";
+
+/* Search */
+"Search..." = "Search...";
+"Regex" = "Regex";
+"Results" = "Results";
+"No results" = "No results";
+
+/* Empty state */
+"No file open" = "No file open";
+"Drag & drop a log file here, or" = "Drag & drop a log file here, or";
+"Try Again" = "Try Again";

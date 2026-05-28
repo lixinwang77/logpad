@@ -1,0 +1,16 @@
+/* General */
+"Open File" = "打开文件";
+"Error" = "错误";
+"Loading..." = "加载中...";
+"Empty file" = "空文件";
+
+/* Search */
+"Search..." = "搜索...";
+"Regex" = "正则";
+"Results" = "结果";
+"No results" = "无结果";
+
+/* Empty state */
+"No file open" = "未打开文件";
+"Drag & drop a log file here, or" = "拖放日志文件到这里，或";
+"Try Again" = "重试";
