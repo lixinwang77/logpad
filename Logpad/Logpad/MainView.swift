@@ -179,7 +179,7 @@ struct LogContentView: View {
                                 LogLineRow(
                                     lineNumber: row + 1,
                                     content: fileReader.readLine(at: row) ?? "",
-                                    isHighlighted: searchResults.contains { $0.line.id == row + 1 }
+                                    highlightRange: searchResults.first { $0.line.id == row + 1 }?.highlightRange
                                 )
                                 .id(row + 1)
                             }
@@ -239,7 +239,7 @@ struct ScrollOffsetKey: PreferenceKey {
 struct LogLineRow: View {
     let lineNumber: Int
     let content: String
-    let isHighlighted: Bool
+    let highlightRange: Range<String.Index>?
 
     var body: some View {
         HStack(spacing: 0) {
@@ -249,13 +249,27 @@ struct LogLineRow: View {
                 .frame(width: 50, alignment: .trailing)
                 .padding(.trailing, 8)
 
-            Text(content)
-                .font(.system(size: 13, design: .monospaced))
-                .textSelection(.enabled)
-                .fixedSize(horizontal: true, vertical: true)
+            highlightedText
         }
         .padding(.vertical, 1)
-        .background(isHighlighted ? Color.yellow.opacity(0.3) : Color.clear)
+        .textSelection(.enabled)
+    }
+
+    @ViewBuilder
+    private var highlightedText: some View {
+        if let range = highlightRange {
+            HStack(spacing: 0) {
+                Text(String(content[..<range.lowerBound]))
+                Text(String(content[range]))
+                    .foregroundColor(.black)
+                    .background(Color.yellow)
+                Text(String(content[range.upperBound...]))
+            }
+            .font(.system(size: 13, design: .monospaced))
+        } else {
+            Text(content)
+                .font(.system(size: 13, design: .monospaced))
+        }
     }
 }
 
