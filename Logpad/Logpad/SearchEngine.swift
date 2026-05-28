@@ -12,7 +12,7 @@ final class SearchEngine: ObservableObject {
         allLines = lines
     }
 
-    func search(condition: FilterCondition, totalLines: Int, lineReader: @escaping (Int) -> String?) {
+    func search(condition: FilterCondition, totalLines: Int, lineReader: @escaping (Int) -> String?, onComplete: (() -> Void)? = nil) {
         searchTask?.cancel()
         guard !condition.keyword.isEmpty else {
             results = []
@@ -62,6 +62,7 @@ final class SearchEngine: ObservableObject {
 
             self.results = found
             self.isSearching = false
+            onComplete?()
         }
     }
 

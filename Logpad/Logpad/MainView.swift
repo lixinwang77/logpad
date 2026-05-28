@@ -13,6 +13,7 @@ struct MainView: View {
     @State private var showFilePicker = false
     @State private var langKey: Int = 0
     @State private var isSearchFieldFocused = false
+    @State private var currentSearchIndex = 0
 
     var body: some View {
         Group {
@@ -63,12 +64,40 @@ struct MainView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("FocusSearchField"))) { _ in
             isSearchFieldFocused = true
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SearchPrevious"))) { _ in
+            jumpToPreviousResult()
+        }
     }
 
     private func performSearch() {
         searchEngine.search(condition: filterCondition, totalLines: fileReader.totalLines) { lineNumber in
             fileReader.readLine(at: lineNumber)
+        } onComplete: { [self] in
+            currentSearchIndex = 0
+            if let first = searchEngine.results.first {
+                targetLine = first.line.id
+            }
         }
+    }
+
+    private func submitOrNext() {
+        if searchEngine.results.isEmpty && !filterCondition.keyword.isEmpty {
+            performSearch()
+        } else {
+            jumpToNextResult()
+        }
+    }
+
+    private func jumpToNextResult() {
+        guard !searchEngine.results.isEmpty else { return }
+        currentSearchIndex = (currentSearchIndex + 1) % searchEngine.results.count
+        targetLine = searchEngine.results[currentSearchIndex].line.id
+    }
+
+    private func jumpToPreviousResult() {
+        guard !searchEngine.results.isEmpty else { return }
+        currentSearchIndex = currentSearchIndex > 0 ? currentSearchIndex - 1 : searchEngine.results.count - 1
+        targetLine = searchEngine.results[currentSearchIndex].line.id
     }
 
     @ViewBuilder
@@ -79,7 +108,7 @@ struct MainView: View {
                 filterCondition: $filterCondition,
                 isSearching: searchEngine.isSearching,
                 onOpenFile: { showFilePicker = true },
-                onSearchSubmit: { performSearch() },
+                onSearchSubmit: { submitOrNext() },
                 langKey: $langKey,
                 isSearchFieldFocused: $isSearchFieldFocused
             )
@@ -161,7 +190,7 @@ struct LogContentView: View {
                 .onChange(of: targetLine) { _, newLine in
                     if let line = newLine {
                         withAnimation {
-                            proxy.scrollTo(line, anchor: .top)
+                            proxy.scrollTo(line, anchor: .topLeading)
                         }
                         targetLine = nil
                     }
@@ -238,7 +267,6 @@ struct ToolbarView: View {
     let onSearchSubmit: () -> Void
     @Binding var langKey: Int
     @Binding var isSearchFieldFocused: Bool
-    @FocusState private var isTextFieldFocused: Bool
 
     var body: some View {
         HStack {
@@ -249,24 +277,18 @@ struct ToolbarView: View {
 
             Divider().frame(height: 20)
 
-            HStack(spacing: 4) {
-                Image(systemName: "magnifyingglass")
-                    .foregroundColor(.secondary)
-                TextField(i18n.str("Search..."), text: $filterCondition.keyword)
-                    .textFieldStyle(.plain)
-                    .frame(width: 180)
-                    .focused($isTextFieldFocused)
-                    .onSubmit {
-                        onSearchSubmit()
-                    }
-            }
+            SearchFieldView(
+                text: $filterCondition.keyword,
+                isTextFieldFocused: isSearchFieldFocused,
+                onSubmit: onSearchSubmit
+            )
+            .frame(width: 180)
             .padding(.horizontal, 6)
             .padding(.vertical, 4)
             .background(Color(nsColor: .controlBackgroundColor))
             .cornerRadius(6)
             .onChange(of: isSearchFieldFocused) { _, newValue in
                 if newValue {
-                    isTextFieldFocused = true
                     isSearchFieldFocused = false
                 }
             }
@@ -407,6 +429,31 @@ struct EmptyFileView: View {
                 .foregroundColor(.secondary)
             Button(i18n.str("openFile")) {
                 onOpenFile()
+            }
+        }
+    }
+}
+
+struct SearchFieldView: View {
+    @Binding var text: String
+    let isTextFieldFocused: Bool
+    let onSubmit: () -> Void
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "magnifyingglass")
+                .foregroundColor(.secondary)
+            TextField(i18n.str("Search..."), text: $text)
+                .textFieldStyle(.plain)
+                .focused($focused)
+                .onSubmit {
+                    onSubmit()
+                }
+        }
+        .onChange(of: isTextFieldFocused) { _, newValue in
+            if newValue {
+                focused = true
             }
         }
     }
