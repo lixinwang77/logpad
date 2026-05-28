@@ -13,7 +13,6 @@ struct MainView: View {
     @State private var showFilePicker = false
     @State private var langKey: Int = 0
     @State private var isSearchFieldFocused = false
-    @FocusState private var searchFieldFocus: Bool
 
     var body: some View {
         Group {
@@ -62,7 +61,6 @@ struct MainView: View {
             showFilePicker = true
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("FocusSearchField"))) { _ in
-            searchFieldFocus = true
             isSearchFieldFocused = true
         }
     }
@@ -240,7 +238,7 @@ struct ToolbarView: View {
     let onSearchSubmit: () -> Void
     @Binding var langKey: Int
     @Binding var isSearchFieldFocused: Bool
-    @FocusState private var isFocused: Bool
+    @FocusState private var isTextFieldFocused: Bool
 
     var body: some View {
         HStack {
@@ -257,7 +255,7 @@ struct ToolbarView: View {
                 TextField(i18n.str("Search..."), text: $filterCondition.keyword)
                     .textFieldStyle(.plain)
                     .frame(width: 180)
-                    .focused($isFocused)
+                    .focused($isTextFieldFocused)
                     .onSubmit {
                         onSearchSubmit()
                     }
@@ -266,6 +264,12 @@ struct ToolbarView: View {
             .padding(.vertical, 4)
             .background(Color(nsColor: .controlBackgroundColor))
             .cornerRadius(6)
+            .onChange(of: isSearchFieldFocused) { _, newValue in
+                if newValue {
+                    isTextFieldFocused = true
+                    isSearchFieldFocused = false
+                }
+            }
 
             Toggle(i18n.str("Regex"), isOn: $filterCondition.isRegex)
                 .toggleStyle(.checkbox)
