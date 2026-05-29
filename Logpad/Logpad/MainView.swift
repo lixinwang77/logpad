@@ -91,11 +91,9 @@ struct MainView: View {
             jumpToPreviousResult()
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ShowMarkMenu"))) { notification in
-            print("DEBUG: ShowMarkMenu received, object = \(String(describing: notification.object))")
             if let text = notification.object as? String, !text.isEmpty {
                 pendingMarkText = text
                 showMarkMenu = true
-                print("DEBUG: pendingMarkText = \(pendingMarkText), showMarkMenu = \(showMarkMenu)")
             }
         }
     }
@@ -132,14 +130,11 @@ struct MainView: View {
     }
 
     private func addHighlightMark(text: String, color: HighlightColor) {
-        print("DEBUG: addHighlightMark called, text='\(text)', color=\(color)")
         let mark = HighlightMark(text: text, color: color)
         highlightMarks.append(mark)
-        print("DEBUG: highlightMarks count = \(highlightMarks.count)")
         searchEngine.searchMarks(highlightMarks, totalLines: fileReader.totalLines) { lineNumber in
             fileReader.readLine(at: lineNumber)
         }
-        print("DEBUG: searchMarks completed, markResults count = \(searchEngine.markResults.count)")
     }
 
     @ViewBuilder
@@ -213,7 +208,6 @@ struct MainView: View {
         }
         .sheet(isPresented: $showMarkMenu) {
             MarkMenuView(text: pendingMarkText) { color in
-                print("DEBUG: MarkMenuView selected color = \(color)")
                 addHighlightMark(text: pendingMarkText, color: color)
                 showMarkMenu = false
             }

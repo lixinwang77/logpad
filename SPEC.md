@@ -2,9 +2,9 @@
 
 ## 1. 产品概述
 
-**产品名称：** Logpad
-**产品类型：** macOS 桌面应用
-**核心定位：** 专为查看大型文本日志文件设计的轻量级工具，类似 Notepad++ 的日志浏览体验
+**产品名称：** Logpad  
+**产品类型：** macOS 桌面应用  
+**核心定位：** 专为查看大型文本日志文件设计的轻量级工具，类似 Notepad++ 的日志浏览体验  
 **目标用户：** 开发者、高级用户在 macOS 上偶尔查看日志文件
 
 ---
@@ -13,38 +13,89 @@
 
 ### 2.1 核心功能
 
-| 功能 | 描述 | 优先级 |
-|------|------|--------|
-| 文件打开 | 通过文件选择器或拖拽打开 .log/.txt 等文本文件 | P0 |
-| 日志浏览 | 支持滚动、定位、跳转行号 | P0 |
-| 关键词搜索 | 支持正则表达式、高亮匹配结果 | P0 |
-| 大文件支持 | 处理 100MB+ 甚至 GB 级文件不卡顿 | P0 |
-| 双窗口分割 | 主日志窗口 + 过滤结果窗口，支持水平/垂直分割布局 | P0 |
-| 联动跳转 | 点击过滤结果窗口中的日志行，主窗口跳转定位 | P0 |
-| 双语界面 | 中英文切换，界面跟随系统语言 | P1 |
+| 功能 | 描述 | 优先级 | 状态 |
+|------|------|--------|------|
+| 文件打开 | 通过文件选择器或拖拽打开 `.log` / `.txt` 等纯文本文件 | P0 | 已实现 |
+| 日志浏览 | 等宽字体、行号列、横纵滚动，按行按需读取 | P0 | 已实现 |
+| 跳转行号 | `Cmd+G` 弹出对话框，输入 1-based 行号跳转定位 | P0 | 已实现 |
+| 关键词搜索 | 工具栏实时搜索，支持正则、大小写选项，匹配片段黄色高亮 | P0 | 已实现 |
+| 搜索导航 | `Enter` 下一条匹配，`Shift+Enter` 上一条匹配 | P0 | 已实现 |
+| 文本标记 | 选中文字后 `Cmd+M`（或右键 Mark）选色，全文件高亮所有相同文本 | P1 | 已实现 |
+| 大文件支持 | 后台分块建立行索引，不将整个文件载入内存 | P0 | 已实现 |
+| 双窗口分割 | 主日志区 + 过滤结果区，支持单窗 / 水平 / 垂直三种布局 | P0 | 已实现 |
+| 联动跳转 | 点击过滤结果列表中的行，主视图滚动到对应行 | P0 | 已实现 |
+| 双语界面 | 中英文文案，工具栏可手动切换语言 | P1 | 已实现 |
 
-### 2.2 用户交互
+### 2.2 快捷键与菜单
 
-- **打开文件**：文件选择对话框 / 拖拽文件到窗口
-- **搜索**：Cmd+F 调出搜索面板，输入关键词实时匹配
-- **跳转行号**：Cmd+G 输入行号直接跳转
-- **滚屏**：支持流畅滚动，不预加载整个文件到内存
-- **分割布局**：通过工具栏按钮或快捷键切换「水平分割/垂直分割/单窗口」模式，主日志窗口与过滤结果窗口各占一半
-- **联动跳转**：点击过滤结果窗口中的某一条日志，主日志窗口自动滚动定位到对应行
+| 快捷键 | 功能 |
+|--------|------|
+| `Cmd+O` | 打开文件 |
+| `Cmd+F` | 聚焦搜索框 |
+| `Cmd+G` | 跳转到指定行号 |
+| `Cmd+M` | 对当前选中文本添加颜色标记 |
+| `Enter` | 搜索框：首次执行搜索；已有结果时跳到下一条 |
+| `Shift+Enter` | 搜索框：跳到上一条匹配 |
 
-### 2.3 数据处理
+### 2.3 用户交互
 
-- **虚拟滚动**：只渲染可见区域内容，内存占用恒定
-- **增量加载**：按需从文件读取分片数据
-- **编码支持**：UTF-8、GBK、Latin-1 等常见编码自动检测
-- **过滤管道**：搜索条件同步驱动主视图高亮 + 整合面板收集，无需两次解析文件
+#### 文件
 
-### 2.4 边缘情况
+- **打开**：菜单 / `Cmd+O` / 工具栏文件夹按钮 / 拖拽到窗口
+- **空状态**：未打开文件时显示引导页
+- **错误**：文件不存在或无法读取时显示错误页，可重试
 
-- 文件不存在或无权限：显示友好错误提示
-- 文件为空：显示"空文件"占位
-- 超大文件（>1GB）：首次打开显示进度提示
-- 文件在外部被修改：检测变化并提示用户
+#### 搜索
+
+- 工具栏搜索框输入关键词后**实时**扫描全文件
+- 勾选 **Regex** 启用正则；勾选 **Aa** 区分大小写
+- 主视图：匹配片段**黄色**背景高亮（非整行）
+- 分屏模式下：过滤结果面板列出所有匹配行（行号 + 内容预览）
+- `Enter` / `Shift+Enter` 在主视图内循环跳转匹配行
+
+#### 跳转行号
+
+- `Cmd+G` 弹出「跳转到行」对话框
+- 行号为 **1-based**，与左侧行号列一致
+- 显示有效范围提示；超出范围时显示错误提示
+- 确认后主视图滚动定位到目标行
+
+#### 文本标记
+
+用于在日志中持久高亮关注的关键词（如错误码、模块名）：
+
+1. 在主日志区**选中**一段文字（AppKit `NSTextView`，支持真实文本选择）
+2. 触发标记：
+   - **`Cmd+M`**（需先选中文字，选区会同步到 `MarkCoordinator`）
+   - 或右键菜单 **Mark**
+3. 弹出颜色选择面板，可选：红 / 橙 / 绿 / 蓝 / 紫
+4. 确认后，在**全文件**内查找所有与选中文本相同的内容（**不区分大小写**），以所选颜色背景高亮
+5. 可多次标记不同关键词，各标记独立着色；搜索高亮（黄色）与标记高亮可同时显示
+
+#### 分割布局
+
+- 工具栏三个图标：单窗口 / 左右分割 / 上下分割
+- 分割模式下才显示过滤结果面板
+
+### 2.4 数据处理
+
+- **行索引**：后台按 1MB 分块扫描换行符，建立行偏移表，打开后按需 `seek` 读单行
+- **编码**：优先 UTF-8，失败回退 ISO Latin-1（GBK 等待实现）
+- **搜索管道**：`SearchEngine` 遍历行索引，结果同时驱动主视图高亮与过滤面板
+- **标记管道**：`SearchEngine.searchMarks` 对每条 `HighlightMark` 全文件扫描，结果按行号存入 `markResults`
+- **虚拟滚动**：`VirtualScrollManager` 已预留；当前主列表使用 `LazyVStack` 按行渲染（超大行数文件仍有优化空间）
+
+### 2.5 边缘情况
+
+| 场景 | 行为 |
+|------|------|
+| 文件不存在 / 无权限 | 显示错误提示，可重试打开 |
+| 未打开文件 / 空文件 | 显示占位引导页 |
+| 未打开文件时 `Cmd+G` | 不响应 |
+| 跳转行号超出范围 | 对话框内提示，不跳转 |
+| 未选中文字时 `Cmd+M` | 不弹出颜色面板 |
+| 超大文件（>1GB） | 首次索引时显示加载状态（进度条待完善） |
+| 文件在外部被修改 | 待实现：检测变化并提示 |
 
 ---
 
@@ -52,35 +103,28 @@
 
 ### 3.1 技术栈
 
-- **框架**：纯 SwiftUI（现代声明式 UI，自定义虚拟滚动）
-- **架构**：MVVM，核心逻辑与 UI 分离
-- **文件读取**：分片读取 + RandomAccessFile，绕过内存限制
-- **UI 渲染**：自定义虚拟列表（LazyVStack 改造）
+- **框架**：SwiftUI + AppKit（`NSTextView` 承载可选中文本行）
+- **架构**：MVVM，`FileReader` / `SearchEngine` 与视图分离
+- **文件读取**：`FileHandle` 分块索引 + 按偏移读行
+- **UI 渲染**：`LazyVStack` + `ScrollViewReader` 实现滚动与行定位
 
-### 3.2 模块划分
+### 3.2 模块划分（实际代码结构）
 
 ```
-Logpad/
-├── App/
-│   ├── main.swift
-│   ├── AppDelegate.swift
-│   └── LogpadApp.swift
-├── Core/
-│   ├── FileReader.swift       # 大文件分片读取
-│   ├── VirtualScroll.swift    # 虚拟滚动引擎
-│   └── SearchEngine.swift     # 搜索/正则匹配
-├── UI/
-│   ├── MainWindow.swift
-│   ├── SplitViewController.swift  # 分割视图管理
-│   ├── LogTextView.swift
-│   ├── FilterResultView.swift    # 过滤结果窗口
-│   ├── SearchPanel.swift
-│   └── FilterPanel.swift      # 过滤条件面板
-├── i18n/
-│   ├── en.lproj/
-│   └── zh-Hans.lproj/
-└── Resources/
-    └── Assets.xcassets
+Logpad/Logpad/
+├── LogpadApp.swift          # App 入口、菜单与快捷键
+├── ContentView.swift        # 根视图、Shift+Enter 监听
+├── MainView.swift           # 主界面、工具栏、分屏、GoToLine / Mark 弹窗
+├── SelectableLogView.swift  # 单行日志（NSTextView + 高亮）
+├── FileReader.swift         # 大文件分块索引与按行读取
+├── SearchEngine.swift       # 搜索、正则匹配、标记扫描
+├── VirtualScrollManager.swift  # 虚拟滚动（预留，未接入主列表）
+├── Models.swift             # LogLine、FilterCondition、HighlightMark 等
+├── LanguageManager.swift    # 语言切换
+├── i18n.swift
+├── en.lproj/
+├── zh-Hans.lproj/
+└── Assets.xcassets/
 ```
 
 ---
@@ -90,7 +134,7 @@ Logpad/
 | 指标 | 要求 |
 |------|------|
 | 启动速度 | < 1 秒 |
-| 100MB 文件打开 | < 2 秒 |
+| 100MB 文件打开 | < 2 秒（行索引完成） |
 | 内存占用 | < 100MB（无论文件多大） |
 | 滚动流畅度 | 60 FPS |
 
@@ -98,19 +142,20 @@ Logpad/
 
 ## 5. 里程碑
 
-| 阶段 | 内容 |
-|------|------|
-| M1 | 项目初始化，基本窗口 + 文件打开 |
-| M2 | 核心大文件读取 + 虚拟滚动 |
-| M3 | 搜索/高亮功能 |
-| M4 | 双语界面 + 打磨 |
+| 阶段 | 内容 | 状态 |
+|------|------|------|
+| M1 | 项目初始化，基本窗口 + 文件打开 | 已完成 |
+| M2 | 大文件行索引 + 按行浏览 | 已完成 |
+| M3 | 搜索 / 高亮 / 分屏 / 联动跳转 | 已完成 |
+| M4 | 跳转行号、文本标记、搜索导航、双语界面 | 已完成 |
+| M5 | 虚拟滚动接入、GBK 编码、文件变更检测 | 待开发 |
 
 ---
 
 ## 6. 参考资料
 
-- [AppKit 虚拟滚动实现](https://developer.apple.com/documentation/appkit)
-- [SwiftUI macOS 大纲](https://developer.apple.com/documentation/swiftui/macos)
+- [AppKit 文档](https://developer.apple.com/documentation/appkit)
+- [SwiftUI macOS 文档](https://developer.apple.com/documentation/swiftui/macos)
 
 ---
 
@@ -125,25 +170,31 @@ struct LogLine: Identifiable {
     let content: String  // 该行原始文本
 }
 
-// 过滤结果
+// 搜索结果
 struct FilterResult: Identifiable {
     let id: UUID
-    let line: LogLine           // 关联的日志行
-    let highlightRange: Range<String.Index>? // 高亮位置
+    let line: LogLine
+    let highlightRange: Range<String.Index>?  // 匹配片段，用于黄色高亮
 }
 
-// 过滤条件
+// 搜索条件
 struct FilterCondition {
-    let keyword: String        // 搜索关键词
-    let isRegex: Bool          // 是否正则表达式
-    let isCaseSensitive: Bool  // 是否大小写敏感
+    var keyword: String
+    var isRegex: Bool
+    var isCaseSensitive: Bool
 }
 
 // 分割模式
 enum SplitMode: String, CaseIterable {
-    case none      // 单窗口
-    case horizontal // 上下分割
-    case vertical   // 左右分割
+    case none         // 单窗口
+    case horizontal   // 上下分割
+    case vertical     // 左右分割
+}
+
+// 文本标记
+struct HighlightMark {
+    let text: String
+    let color: HighlightColor  // red / orange / green / blue / purple
 }
 ```
 
@@ -151,47 +202,53 @@ enum SplitMode: String, CaseIterable {
 
 ## 8. 模块职责
 
-| 文件 | 职责 | 公开 API |
-|------|------|----------|
-| `LogpadApp.swift` | App 入口，根视图 | - |
-| `ContentView.swift` | 主容器，负责分割布局 | - |
-| `LogTextView.swift` | 主日志列表（虚拟滚动） | `scrollToLine(_:)` |
-| `FilterResultView.swift` | 过滤结果列表 | `onLineSelected: (LogLine) → Void` |
-| `SearchPanel.swift` | 搜索输入框 | `filterCondition: Binding<FilterCondition>` |
-| `FileReader.swift` | 文件分片读取 | `readChunk(start:offset:length:)`, `totalLines()` |
-| `SearchEngine.swift` | 全文搜索/正则 | `search(query:) -> [FilterResult]` |
-| `VirtualScrollManager.swift` | 虚拟滚动引擎 | `visibleRange`, `loadIfNeeded()` |
-| `i18n.swift` | 国际化字符串 | `String(localized:)` |
+| 文件 | 职责 |
+|------|------|
+| `LogpadApp.swift` | App 入口；注册 `Cmd+O/F/G/M` 菜单命令 |
+| `ContentView.swift` | 根视图；`Shift+Enter` 全局监听 |
+| `MainView.swift` | 主布局、工具栏、分屏、`GoToLineView` / `MarkMenuView` |
+| `SelectableLogView.swift` | 单行 `NSTextView`：文本选择、右键 Mark、片段高亮 |
+| `FileReader.swift` | 分块建索引、`readLine(at:)` |
+| `SearchEngine.swift` | `search(condition:)`、`searchMarks(_:)` |
+| `VirtualScrollManager.swift` | 可见行范围（预留） |
+| `LanguageManager.swift` / `i18n.swift` | 中英文本地化 |
 
 ---
 
 ## 9. 验收标准
 
-### M1 - 项目初始化，基本窗口 + 文件打开
+### M1 - 文件打开
 
-- [ ] App 可以正常启动，显示主窗口
-- [ ] 可以通过文件选择器打开 .txt/.log 文件
-- [ ] 可以拖拽文件到窗口打开
+- [x] App 正常启动，显示主窗口
+- [x] 文件选择器 / 拖拽打开 `.txt` / `.log`
 - [ ] 窗口标题显示当前文件名
 
-### M2 - 核心大文件读取 + 虚拟滚动
+### M2 - 大文件浏览
 
-- [ ] 100MB 文件在 2 秒内加载完成
-- [ ] 滚动时内存占用保持稳定（< 100MB）
-- [ ] 行号显示正确
-- [ ] 空文件显示占位提示
+- [x] 大文件后台建索引，打开后不整文件载入内存
+- [x] 左侧行号正确（1-based）
+- [x] 空文件 / 未打开文件显示占位
+- [ ] 100MB 文件 2 秒内可浏览；内存 < 100MB
 
-### M3 - 搜索/高亮功能
+### M3 - 搜索与高亮
 
-- [ ] Cmd+F 调出搜索面板
-- [ ] 输入关键词后主视图高亮匹配行
-- [ ] 过滤结果窗口同步显示匹配行
-- [ ] 支持正则表达式搜索
-- [ ] 点击过滤结果行，主视图跳转定位
+- [x] `Cmd+F` 聚焦搜索框
+- [x] 关键词实时搜索，匹配片段黄色高亮
+- [x] 支持正则、大小写选项
+- [x] 分屏显示过滤结果列表
+- [x] 点击结果行 / `Enter` / `Shift+Enter` 跳转匹配行
 
-### M4 - 双语界面 + 打磨
+### M4 - 跳转、标记与国际化
 
-- [ ] 界面语言跟随 macOS 系统语言
-- [ ] 水平/垂直/单窗口分割可切换
-- [ ] 窗口可调整大小，分割比例保持
-- [ ] 无内存泄漏
+- [x] `Cmd+G` 跳转指定行号，含范围校验
+- [x] 选中文本后 `Cmd+M` 或右键 Mark 弹出颜色面板
+- [x] 标记后全文件相同文本以所选颜色高亮
+- [x] 中英文界面，工具栏可切换语言
+- [x] 单窗 / 水平 / 垂直分割可切换
+
+### M5 - 待完善
+
+- [ ] 真正虚拟滚动（超大行数不创建全部行视图）
+- [ ] GBK 等编码自动检测
+- [ ] 外部文件修改检测与提示
+- [ ] 超大文件索引进度条
