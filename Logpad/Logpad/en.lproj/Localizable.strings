@@ -17,6 +17,8 @@
 "Regex" = "Regex";
 "Results" = "Results";
 "No results" = "No results";
+"prevMatchHint" = "Previous match (⇧↵)";
+"nextMatchHint" = "Next match (↵)";
 
 /* External change */
 "fileChangedMessage" = "This file has been modified outside Logpad.";

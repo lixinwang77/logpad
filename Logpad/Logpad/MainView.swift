@@ -141,8 +141,11 @@ struct MainView: View {
                 splitMode: $splitMode,
                 filterCondition: $filterCondition,
                 isSearching: searchEngine.isSearching,
+                hasResults: !searchEngine.results.isEmpty,
                 onOpenFile: { showFilePicker = true },
                 onSearchSubmit: { submitOrNext() },
+                onPreviousResult: { jumpToPreviousResult() },
+                onNextResult: { jumpToNextResult() },
                 langKey: $langKey,
                 isSearchFieldFocused: $isSearchFieldFocused
             )
@@ -327,8 +330,11 @@ struct ToolbarView: View {
     @Binding var splitMode: SplitMode
     @Binding var filterCondition: FilterCondition
     let isSearching: Bool
+    let hasResults: Bool
     let onOpenFile: () -> Void
     let onSearchSubmit: () -> Void
+    let onPreviousResult: () -> Void
+    let onNextResult: () -> Void
     @Binding var langKey: Int
     @Binding var isSearchFieldFocused: Bool
 
@@ -355,6 +361,26 @@ struct ToolbarView: View {
                 if newValue {
                     isSearchFieldFocused = false
                 }
+            }
+
+            HStack(spacing: 2) {
+                // Native NSButton tooltips keep working after the log NSTextView
+                // takes first responder, unlike SwiftUI's `.help`.
+                NavArrowButton(
+                    systemImage: "chevron.up",
+                    toolTip: i18n.str("prevMatchHint"),
+                    action: onPreviousResult
+                )
+                .frame(width: 22, height: 20)
+                .opacity(hasResults ? 1 : 0.4)
+
+                NavArrowButton(
+                    systemImage: "chevron.down",
+                    toolTip: i18n.str("nextMatchHint"),
+                    action: onNextResult
+                )
+                .frame(width: 22, height: 20)
+                .opacity(hasResults ? 1 : 0.4)
             }
 
             Toggle(i18n.str("Regex"), isOn: $filterCondition.isRegex)
@@ -417,6 +443,42 @@ struct ToolbarView: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
+    }
+}
+
+/// A borderless AppKit button whose tooltip is set natively, so it stays
+/// reliable regardless of which view currently holds first responder.
+struct NavArrowButton: NSViewRepresentable {
+    let systemImage: String
+    let toolTip: String
+    let action: () -> Void
+
+    func makeNSView(context: Context) -> NSButton {
+        let button = NSButton()
+        button.isBordered = false
+        button.bezelStyle = .regularSquare
+        button.imagePosition = .imageOnly
+        button.imageScaling = .scaleProportionallyDown
+        let config = NSImage.SymbolConfiguration(pointSize: 12, weight: .regular)
+        button.image = NSImage(systemSymbolName: systemImage, accessibilityDescription: toolTip)?
+            .withSymbolConfiguration(config)
+        button.toolTip = toolTip
+        button.target = context.coordinator
+        button.action = #selector(Coordinator.fire)
+        return button
+    }
+
+    func updateNSView(_ nsView: NSButton, context: Context) {
+        nsView.toolTip = toolTip
+        context.coordinator.action = action
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator(action: action) }
+
+    final class Coordinator: NSObject {
+        var action: () -> Void
+        init(action: @escaping () -> Void) { self.action = action }
+        @objc func fire() { action() }
     }
 }
 

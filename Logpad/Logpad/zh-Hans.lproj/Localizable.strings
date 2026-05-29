@@ -17,6 +17,8 @@
 "Regex" = "正则";
 "Results" = "结果";
 "No results" = "无结果";
+"prevMatchHint" = "上一条匹配 (⇧↵)";
+"nextMatchHint" = "下一条匹配 (↵)";
 
 /* External change */
 "fileChangedMessage" = "该文件已在 Logpad 外部被修改。";
