@@ -1,5 +1,5 @@
 /* General */
-"Open File" = "Open File";
+"openFile" = "Open File";
 "Error" = "Error";
 "Loading..." = "Loading...";
 "Empty file" = "Empty file";
@@ -25,8 +25,8 @@
 
 /* Empty state */
 "No file open" = "No file open";
-"Drag & drop a log file here, or" = "Drag & drop a log file here, or";
-"Try Again" = "Try Again";
+"dragDropHint" = "Drag a file here, or press ⌘O to open";
+"tryAgain" = "Try Again";
 
 /* About */
 "About" = "About";

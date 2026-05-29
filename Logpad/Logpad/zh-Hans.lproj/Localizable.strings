@@ -1,5 +1,5 @@
 /* General */
-"Open File" = "打开文件";
+"openFile" = "打开文件";
 "Error" = "错误";
 "Loading..." = "加载中...";
 "Empty file" = "空文件";
@@ -25,8 +25,8 @@
 
 /* Empty state */
 "No file open" = "未打开文件";
-"Drag & drop a log file here, or" = "拖放日志文件到这里，或";
-"Try Again" = "重试";
+"dragDropHint" = "拖放文件到这里，或按 ⌘O 打开";
+"tryAgain" = "重试";
 
 /* About */
 "About" = "关于";
