@@ -1,0 +1,40 @@
+# Logpad - Agent 指南
+
+Logpad 是专为查看大型文本日志文件设计的轻量级 macOS 桌面应用。详细产品与技术规格见 [SPEC.md](SPEC.md)；以下为 Agent 必须遵守的约束。
+
+## 架构
+
+- SwiftUI + AppKit（`NSTextView` 承载可选中文本行）
+- MVVM：`FileReader`（分块索引、按行读）、`SearchEngine`（搜索/标记）、视图层分离
+- 虚拟滚动：`VirtualLogView`（`NSTableView` 行回收），内存与文件大小无关
+
+## 性能红线
+
+- 禁止将整个日志文件读入 `String` / `[String]`
+- 搜索：后台流式扫描 + 字节预筛（`ByteNeedle`），250ms debounce
+- 目标：100MB 文件 < 2s 可浏览，内存 < 100MB
+
+## 关键行为（不可随意更改）
+
+| 功能 | 约定 |
+|---|---|
+| 行号 | 1-based，与左侧行号列一致 |
+| 搜索高亮 | 匹配**片段**黄色背景，非整行 |
+| 文本标记 | 全文件相同文本（不区分大小写），独立着色 |
+| 编码 | UTF-8 优先，失败回退 ISO Latin-1 |
+| 快捷键 | `Cmd+O/F/G/M`，搜索 `Enter`/`Shift+Enter` |
+
+## 代码风格
+
+- 匹配现有命名与文件组织
+- 注释只解释非显而易见的业务/并发逻辑
+- 不添加用户未要求的测试或过度抽象
+
+## 文档同步
+
+- **新功能**：实现时同步更新 [SPEC.md](SPEC.md)（功能规格、快捷键/菜单、模块划分、验收标准、里程碑状态）
+- **新模块**：在 SPEC.md「模块职责」中补充文件说明
+
+## 发版
+
+Bug 修复 PATCH+1，新功能 MINOR+1，不兼容变更 MAJOR+1；同步 `VERSION.md` 与 Build 号。
