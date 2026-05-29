@@ -35,6 +35,7 @@ struct MainView: View {
             }
         }
         .id("lang-\(langKey)")
+        .windowTitle(fileReader.fileName.isEmpty ? "Logpad" : fileReader.fileName)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .fileImporter(
             isPresented: $showFilePicker,

@@ -13,14 +13,12 @@ final class FileReader: ObservableObject {
 
     @Published var isLoading: Bool = false
     @Published var error: String?
-
-    var fileName: String {
-        filePath?.lastPathComponent ?? ""
-    }
+    @Published private(set) var fileName: String = ""
 
     func open(url: URL) {
         close()
         filePath = url
+        fileName = url.lastPathComponent
         lineOffsets = [0]
         totalLines = 0
         error = nil
@@ -191,6 +189,7 @@ final class FileReader: ObservableObject {
         try? fileHandle?.close()
         fileHandle = nil
         filePath = nil
+        fileName = ""
     }
 
     deinit {

@@ -13,6 +13,26 @@ struct ContentView: View {
     }
 }
 
+private struct WindowTitleAccessor: NSViewRepresentable {
+    let title: String
+
+    func makeNSView(context: Context) -> NSView {
+        NSView()
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async {
+            nsView.window?.title = title
+        }
+    }
+}
+
+extension View {
+    func windowTitle(_ title: String) -> some View {
+        background(WindowTitleAccessor(title: title))
+    }
+}
+
 class ShiftEnterMonitor {
     static let shared = ShiftEnterMonitor()
     private var monitor: Any?
