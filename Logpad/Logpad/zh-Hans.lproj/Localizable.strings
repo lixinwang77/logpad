@@ -13,7 +13,7 @@
 "invalidLineNumber" = "请输入 1 到 %d 之间的数字";
 
 /* Search */
-"Search..." = "搜索...";
+"Search..." = "搜索 (⌘F)";
 "Regex" = "正则";
 "Results" = "结果";
 "No results" = "无结果";
