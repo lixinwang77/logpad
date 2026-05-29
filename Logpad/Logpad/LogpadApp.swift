@@ -25,6 +25,14 @@ struct LogpadApp: App {
                 }
                 .keyboardShortcut("f", modifiers: .command)
 
+                Button(i18n.str("Go to Line")) {
+                    NotificationCenter.default.post(
+                        name: NSNotification.Name("GoToLine"),
+                        object: nil
+                    )
+                }
+                .keyboardShortcut("g", modifiers: .command)
+
                 Button("Mark") {
                     MarkCoordinator.shared.requestMarkText()
                 }

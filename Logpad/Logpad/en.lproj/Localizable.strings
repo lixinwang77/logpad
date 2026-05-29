@@ -4,6 +4,14 @@
 "Loading..." = "Loading...";
 "Empty file" = "Empty file";
 
+/* Go to line */
+"Go to Line" = "Go to Line";
+"Line number:" = "Line number:";
+"Go" = "Go";
+"Cancel" = "Cancel";
+"lineRangeHint" = "Valid range: 1–%d";
+"invalidLineNumber" = "Enter a number between 1 and %d";
+
 /* Search */
 "Search..." = "Search...";
 "Regex" = "Regex";

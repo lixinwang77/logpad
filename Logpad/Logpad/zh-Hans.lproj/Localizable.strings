@@ -4,6 +4,14 @@
 "Loading..." = "加载中...";
 "Empty file" = "空文件";
 
+/* Go to line */
+"Go to Line" = "跳转到行";
+"Line number:" = "行号：";
+"Go" = "跳转";
+"Cancel" = "取消";
+"lineRangeHint" = "有效范围：1–%d";
+"invalidLineNumber" = "请输入 1 到 %d 之间的数字";
+
 /* Search */
 "Search..." = "搜索...";
 "Regex" = "正则";

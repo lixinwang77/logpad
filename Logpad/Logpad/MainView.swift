@@ -17,6 +17,8 @@ struct MainView: View {
     @State private var highlightMarks: [HighlightMark] = []
     @State private var showMarkMenu = false
     @State private var pendingMarkText = ""
+    @State private var showGoToLine = false
+    @State private var goToLineInput = ""
 
     var body: some View {
         Group {
@@ -66,6 +68,24 @@ struct MainView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("FocusSearchField"))) { _ in
             isSearchFieldFocused = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("GoToLine"))) { _ in
+            guard fileReader.totalLines > 0, !fileReader.isLoading else { return }
+            goToLineInput = ""
+            showGoToLine = true
+        }
+        .sheet(isPresented: $showGoToLine) {
+            GoToLineView(
+                lineInput: $goToLineInput,
+                totalLines: fileReader.totalLines,
+                onGo: { line in
+                    targetLine = line
+                    showGoToLine = false
+                },
+                onCancel: {
+                    showGoToLine = false
+                }
+            )
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SearchPrevious"))) { _ in
             jumpToPreviousResult()
@@ -576,6 +596,62 @@ struct ErrorView: View {
                 onRetry()
             }
         }
+    }
+}
+
+struct GoToLineView: View {
+    @Binding var lineInput: String
+    let totalLines: Int
+    let onGo: (Int) -> Void
+    let onCancel: () -> Void
+
+    @FocusState private var isFocused: Bool
+    @State private var showInvalidHint = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(i18n.str("Go to Line"))
+                .font(.headline)
+
+            TextField(i18n.str("Line number:"), text: $lineInput)
+                .textFieldStyle(.roundedBorder)
+                .focused($isFocused)
+                .onSubmit(submit)
+                .onChange(of: lineInput) { _, _ in
+                    showInvalidHint = false
+                }
+
+            Text(String(format: i18n.str("lineRangeHint"), totalLines))
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            if showInvalidHint {
+                Text(String(format: i18n.str("invalidLineNumber"), totalLines))
+                    .font(.caption)
+                    .foregroundColor(.red)
+            }
+
+            HStack {
+                Spacer()
+                Button(i18n.str("Cancel"), role: .cancel, action: onCancel)
+                Button(i18n.str("Go"), action: submit)
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding()
+        .frame(width: 320)
+        .onAppear {
+            isFocused = true
+        }
+    }
+
+    private func submit() {
+        let trimmed = lineInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let number = Int(trimmed), number >= 1, number <= totalLines else {
+            showInvalidHint = true
+            return
+        }
+        onGo(number)
     }
 }
 
