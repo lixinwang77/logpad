@@ -179,10 +179,15 @@ struct VirtualLogView: NSViewRepresentable {
             }
 
             let content = parent.fileReader.readLine(at: row) ?? ""
+            let lineID = row + 1
+            let currentRange = lineID == parent.searchEngine.currentMatchLineID
+                ? parent.searchEngine.currentMatchRange
+                : nil
             view.configure(
-                lineNumber: row + 1,
+                lineNumber: lineID,
                 content: content,
-                searchRange: parent.searchEngine.searchRange(forLineID: row + 1),
+                searchRanges: parent.searchEngine.searchRanges(forLineID: lineID),
+                currentSearchRange: currentRange,
                 markRanges: parent.searchEngine.markResults[row],
                 onMarkText: parent.onTextSelected
             )
@@ -200,6 +205,9 @@ final class LogRowView: NSView {
 
     private static let lineFont = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
     private static let contentFont = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
+    /// Background for ordinary search matches and the currently focused one.
+    static let searchColor = NSColor.systemYellow
+    static let currentSearchColor = NSColor.systemYellow.blended(withFraction: 0.5, of: .systemOrange) ?? .systemOrange
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -242,7 +250,8 @@ final class LogRowView: NSView {
 
     func configure(lineNumber: Int,
                    content: String,
-                   searchRange: NSRange?,
+                   searchRanges: [NSRange],
+                   currentSearchRange: NSRange?,
                    markRanges: [(NSRange, HighlightColor)]?,
                    onMarkText: ((String) -> Void)?) {
         lineLabel.stringValue = "\(lineNumber)"
@@ -262,9 +271,12 @@ final class LogRowView: NSView {
             }
         }
 
-        if let searchRange, searchRange.location >= 0,
-           searchRange.location + searchRange.length <= nsLength {
-            attributed.addAttribute(.backgroundColor, value: NSColor.systemYellow, range: searchRange)
+        for searchRange in searchRanges where searchRange.location >= 0
+            && searchRange.location + searchRange.length <= nsLength {
+            let isCurrent = currentSearchRange.map { NSEqualRanges($0, searchRange) } ?? false
+            attributed.addAttribute(.backgroundColor,
+                                    value: isCurrent ? LogRowView.currentSearchColor : LogRowView.searchColor,
+                                    range: searchRange)
         }
 
         textView.textStorage?.setAttributedString(attributed)

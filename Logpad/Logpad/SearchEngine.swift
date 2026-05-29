@@ -62,16 +62,37 @@ final class SearchEngine: ObservableObject {
     /// cheaply detect that visible highlights need to be refreshed.
     @Published private(set) var revision: Int = 0
 
-    /// Fast lookup of a line's search-match range keyed by 1-based line id.
-    private(set) var resultLineIndex: [Int: NSRange] = [:]
+    /// Fast lookup of a line's search-match ranges keyed by 1-based line id.
+    /// A line may contain several matches, so every occurrence is stored.
+    private(set) var resultLineIndex: [Int: [NSRange]] = [:]
+
+    /// The match the user has navigated to (1-based line id + its range), drawn
+    /// with a deeper highlight so the active occurrence stands out. `0` / `nil`
+    /// means no match is currently focused.
+    @Published private(set) var currentMatchLineID: Int = 0
+    private(set) var currentMatchRange: NSRange?
 
     private var searchTask: Task<Void, Never>?
     private var markTask: Task<Void, Never>?
 
     private static let debounceNanos: UInt64 = 250_000_000
 
-    func searchRange(forLineID id: Int) -> NSRange? {
-        resultLineIndex[id]
+    func searchRanges(forLineID id: Int) -> [NSRange] {
+        resultLineIndex[id] ?? []
+    }
+
+    /// Marks the result at `index` as the focused match and triggers a highlight
+    /// refresh so the renderer can draw it with the deeper color.
+    func focusMatch(at index: Int) {
+        if index >= 0, index < results.count {
+            let r = results[index]
+            currentMatchLineID = r.line.id
+            currentMatchRange = r.highlightRange.map { NSRange($0, in: r.line.content) }
+        } else {
+            currentMatchLineID = 0
+            currentMatchRange = nil
+        }
+        revision &+= 1
     }
 
     func search(condition: FilterCondition,
@@ -83,6 +104,8 @@ final class SearchEngine: ObservableObject {
         guard !keyword.isEmpty else {
             results = []
             resultLineIndex = [:]
+            currentMatchLineID = 0
+            currentMatchRange = nil
             isSearching = false
             revision &+= 1
             onComplete?()
@@ -110,6 +133,8 @@ final class SearchEngine: ObservableObject {
                     guard let self else { return }
                     self.results = []
                     self.resultLineIndex = [:]
+                    self.currentMatchLineID = 0
+                    self.currentMatchRange = nil
                     self.isSearching = false
                     self.revision &+= 1
                     onComplete?()
@@ -118,31 +143,40 @@ final class SearchEngine: ObservableObject {
             }
 
             var found: [FilterResult] = []
-            var index: [Int: NSRange] = [:]
+            var index: [Int: [NSRange]] = [:]
             let options: String.CompareOptions = caseSensitive ? [] : [.caseInsensitive]
             let needle = ByteNeedle(keyword, caseInsensitive: !caseSensitive)
 
             lineStream({ Task.isCancelled }) { lineNumber, bytes in
                 if let rx = regex {
-                    // Regex requires a String; build it per line.
+                    // Regex requires a String; build it per line. Collect every
+                    // match so multiple hits on one line are all navigable.
                     let line = String(decoding: bytes, as: UTF8.self)
                     let full = NSRange(line.startIndex..., in: line)
-                    if let match = rx.firstMatch(in: line, range: full),
-                       let r = Range(match.range, in: line) {
-                        let id = lineNumber + 1
+                    let id = lineNumber + 1
+                    var ranges: [NSRange] = []
+                    for match in rx.matches(in: line, range: full) where match.range.length > 0 {
+                        guard let r = Range(match.range, in: line) else { continue }
                         found.append(FilterResult(line: LogLine(id: id, content: line), highlightRange: r))
-                        index[id] = NSRange(r, in: line)
+                        ranges.append(match.range)
                     }
+                    if !ranges.isEmpty { index[id] = ranges }
                     return
                 }
 
-                // Literal path: cheap byte prefilter, decode only on a hit.
+                // Literal path: cheap byte prefilter, decode only on a hit, then
+                // walk the line to capture every occurrence of the keyword.
                 guard needle.isContained(in: bytes) else { return }
                 let line = String(decoding: bytes, as: UTF8.self)
-                guard let r = line.range(of: keyword, options: options) else { return }
                 let id = lineNumber + 1
-                found.append(FilterResult(line: LogLine(id: id, content: line), highlightRange: r))
-                index[id] = NSRange(r, in: line)
+                var ranges: [NSRange] = []
+                var searchStart = line.startIndex
+                while let r = line.range(of: keyword, options: options, range: searchStart..<line.endIndex) {
+                    found.append(FilterResult(line: LogLine(id: id, content: line), highlightRange: r))
+                    ranges.append(NSRange(r, in: line))
+                    searchStart = r.upperBound
+                }
+                if !ranges.isEmpty { index[id] = ranges }
             }
 
             if Task.isCancelled { return }
@@ -151,6 +185,8 @@ final class SearchEngine: ObservableObject {
                 guard let self else { return }
                 self.results = found
                 self.resultLineIndex = index
+                self.currentMatchLineID = 0
+                self.currentMatchRange = nil
                 self.isSearching = false
                 self.revision &+= 1
                 onComplete?()
@@ -205,6 +241,8 @@ final class SearchEngine: ObservableObject {
         searchTask?.cancel()
         results = []
         resultLineIndex = [:]
+        currentMatchLineID = 0
+        currentMatchRange = nil
         revision &+= 1
     }
 

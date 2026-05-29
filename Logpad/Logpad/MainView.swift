@@ -104,6 +104,7 @@ struct MainView: View {
             currentSearchIndex = 0
             if let first = searchEngine.results.first {
                 targetLine = first.line.id
+                searchEngine.focusMatch(at: 0)
             }
         }
     }
@@ -120,12 +121,14 @@ struct MainView: View {
         guard !searchEngine.results.isEmpty else { return }
         currentSearchIndex = (currentSearchIndex + 1) % searchEngine.results.count
         targetLine = searchEngine.results[currentSearchIndex].line.id
+        searchEngine.focusMatch(at: currentSearchIndex)
     }
 
     private func jumpToPreviousResult() {
         guard !searchEngine.results.isEmpty else { return }
         currentSearchIndex = currentSearchIndex > 0 ? currentSearchIndex - 1 : searchEngine.results.count - 1
         targetLine = searchEngine.results[currentSearchIndex].line.id
+        searchEngine.focusMatch(at: currentSearchIndex)
     }
 
     private func addHighlightMark(text: String, color: HighlightColor) {
@@ -183,8 +186,10 @@ struct MainView: View {
                     )
                     FilterResultView(
                         results: searchEngine.results,
-                        onLineSelected: { line in
-                            targetLine = line.id
+                        onResultSelected: { index in
+                            currentSearchIndex = index
+                            targetLine = searchEngine.results[index].line.id
+                            searchEngine.focusMatch(at: index)
                         }
                     )
                 }
@@ -202,8 +207,10 @@ struct MainView: View {
                     Divider()
                     FilterResultView(
                         results: searchEngine.results,
-                        onLineSelected: { line in
-                            targetLine = line.id
+                        onResultSelected: { index in
+                            currentSearchIndex = index
+                            targetLine = searchEngine.results[index].line.id
+                            searchEngine.focusMatch(at: index)
                         }
                     )
                 }
@@ -484,7 +491,7 @@ struct NavArrowButton: NSViewRepresentable {
 
 struct FilterResultView: View {
     let results: [FilterResult]
-    let onLineSelected: (LogLine) -> Void
+    let onResultSelected: (Int) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -507,9 +514,9 @@ struct FilterResultView: View {
             } else {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 0) {
-                        ForEach(results) { result in
+                        ForEach(Array(results.enumerated()), id: \.element.id) { index, result in
                             Button {
-                                onLineSelected(result.line)
+                                onResultSelected(index)
                             } label: {
                                 HStack(alignment: .top, spacing: 0) {
                                     Text("\(result.line.id)")
