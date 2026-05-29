@@ -2,6 +2,8 @@ import SwiftUI
 import AppKit
 
 struct ContentView: View {
+    @State private var showAbout = false
+
     var body: some View {
         MainView()
             .onAppear {
@@ -9,6 +11,12 @@ struct ContentView: View {
             }
             .onDisappear {
                 ShiftEnterMonitor.shared.stop()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ShowAbout"))) { _ in
+                showAbout = true
+            }
+            .sheet(isPresented: $showAbout) {
+                AboutView()
             }
     }
 }

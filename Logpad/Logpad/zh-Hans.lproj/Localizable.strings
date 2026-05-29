@@ -22,3 +22,9 @@
 "No file open" = "未打开文件";
 "Drag & drop a log file here, or" = "拖放日志文件到这里，或";
 "Try Again" = "重试";
+
+/* About */
+"About" = "关于";
+"versionFormat" = "版本 %@（%@）";
+"aboutDescription" = "专为 macOS 设计的轻量级日志查看器";
+"OK" = "好";

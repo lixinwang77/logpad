@@ -22,3 +22,9 @@
 "No file open" = "No file open";
 "Drag & drop a log file here, or" = "Drag & drop a log file here, or";
 "Try Again" = "Try Again";
+
+/* About */
+"About" = "About";
+"versionFormat" = "Version %@ (%@)";
+"aboutDescription" = "A lightweight log viewer for macOS";
+"OK" = "OK";

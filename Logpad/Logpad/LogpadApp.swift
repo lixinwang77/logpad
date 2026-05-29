@@ -8,6 +8,15 @@ struct LogpadApp: App {
         }
         .windowResizability(.contentSize)
         .commands {
+            CommandGroup(replacing: .appInfo) {
+                Button("\(i18n.str("About")) \(AppVersion.appName)...") {
+                    NotificationCenter.default.post(
+                        name: NSNotification.Name("ShowAbout"),
+                        object: nil
+                    )
+                }
+            }
+
             CommandGroup(replacing: .newItem) {
                 Button("Open...") {
                     NotificationCenter.default.post(

@@ -152,16 +152,30 @@ Logpad/Logpad/
 
 ---
 
-## 6. 参考资料
+## 6. 版本管理
+
+采用语义化版本（SemVer），版本号定义在 Xcode 项目 `MARKETING_VERSION`，Build 号在 `CURRENT_PROJECT_VERSION`。运行时通过 `AppVersion.swift` 从 Bundle 读取，在菜单 **Logpad → 关于 Logpad** 中展示。
+
+| 变更类型 | 版本号变化 |
+|----------|------------|
+| Bug 修复 | PATCH +1（如 1.0.0 → 1.0.1） |
+| 新功能 | MINOR +1（如 1.0.1 → 1.1.0） |
+| 重大不兼容变更 | MAJOR +1（如 1.1.0 → 2.0.0） |
+
+每次发版需同步更新 `VERSION.md` 变更记录，并递增 Build 号。详见 [VERSION.md](VERSION.md)。
+
+---
+
+## 7. 参考资料
 
 - [AppKit 文档](https://developer.apple.com/documentation/appkit)
 - [SwiftUI macOS 文档](https://developer.apple.com/documentation/swiftui/macos)
 
 ---
 
-## 7. 数据类型定义
+## 8. 数据类型定义
 
-### 7.1 核心结构
+### 8.1 核心结构
 
 ```swift
 // 单行日志
@@ -200,7 +214,7 @@ struct HighlightMark {
 
 ---
 
-## 8. 模块职责
+## 9. 模块职责
 
 | 文件 | 职责 |
 |------|------|
@@ -215,7 +229,7 @@ struct HighlightMark {
 
 ---
 
-## 9. 验收标准
+## 10. 验收标准
 
 ### M1 - 文件打开
 
