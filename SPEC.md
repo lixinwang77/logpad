@@ -85,7 +85,7 @@
 - **行索引**：后台按 4MB 分块、用 `memchr` 扫描换行符建立行偏移表（O(n)），打开后按需 `seek` 读单行；文件读取加锁串行化，保证后台搜索与 UI 渲染并发安全
 - **编码**：优先 UTF-8，失败回退 ISO Latin-1（GBK 等待实现）
 - **搜索管道**：后台线程顺序流式扫描文件（`forEachLineBytes`），先用字节级预筛（`ByteNeedle`：`memmem` / ASCII 折叠）筛选，命中行才解码为 `String` 并算精确高亮；输入带 250ms debounce
-- **标记管道**：`SearchEngine.searchMarks` 单趟流式扫描，对所有标记一次性匹配，结果按行号存入 `markResults`
+- **标记管道**：标记**不做全文件预扫描**；`SearchEngine.addMark` 仅记录标记，渲染时由 `markRanges(in:)` 对每个可见行的内容即时计算命中范围（开销与可见行数成正比，与文件大小无关），避免大文件下添加标记触发整文件扫描造成 CPU 飙升
 - **虚拟滚动**：`VirtualLogView` 基于 `NSTableView` 行回收渲染，仅创建可见区域 ± 缓冲的行视图，内存与视图数量与文件大小无关
 - **外部修改检测**：`FileReader` 用 `DispatchSource` 文件系统监听（`O_EVTONLY` 描述符，监听 write / extend / delete / rename / revoke），事件经 0.5s debounce 合并后置位 `fileChangedExternally`，UI 显示提示条；`reload()` 递增 `reloadGeneration` 后重新索引，`VirtualLogView` 据此恢复重载前的顶部可见行（夹取到新行数范围内）
 
@@ -227,7 +227,7 @@ struct HighlightMark {
 | `MainView.swift` | 主布局、工具栏、分屏、`GoToLineView` / `MarkMenuView` |
 | `SelectableLogView.swift` | 单行 `NSTextView`：文本选择、右键 Mark、片段高亮 |
 | `FileReader.swift` | 分块建索引、`readLine(at:)` |
-| `SearchEngine.swift` | `search(condition:)`、`searchMarks(_:)` |
+| `SearchEngine.swift` | `search(condition:)`、`addMark(_:)` / `markRanges(in:)` |
 | `VirtualScrollManager.swift` | 可见行范围（预留） |
 | `LanguageManager.swift` / `i18n.swift` | 中英文本地化 |
 

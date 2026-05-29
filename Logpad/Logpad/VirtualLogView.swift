@@ -188,7 +188,7 @@ struct VirtualLogView: NSViewRepresentable {
                 content: content,
                 searchRanges: parent.searchEngine.searchRanges(forLineID: lineID),
                 currentSearchRange: currentRange,
-                markRanges: parent.searchEngine.markResults[row],
+                markRanges: parent.searchEngine.markRanges(in: content),
                 onMarkText: parent.onTextSelected
             )
             return view
@@ -252,7 +252,7 @@ final class LogRowView: NSView {
                    content: String,
                    searchRanges: [NSRange],
                    currentSearchRange: NSRange?,
-                   markRanges: [(NSRange, HighlightColor)]?,
+                   markRanges: [(NSRange, HighlightColor)],
                    onMarkText: ((String) -> Void)?) {
         lineLabel.stringValue = "\(lineNumber)"
         textView.onMarkText = onMarkText
@@ -263,12 +263,10 @@ final class LogRowView: NSView {
         attributed.addAttribute(.font, value: LogRowView.contentFont, range: fullRange)
         attributed.addAttribute(.foregroundColor, value: NSColor.labelColor, range: fullRange)
 
-        if let marks = markRanges {
-            for (range, color) in marks where range.location >= 0 && range.location + range.length <= nsLength {
-                attributed.addAttribute(.backgroundColor,
-                                        value: color.nsColor.withAlphaComponent(0.5),
-                                        range: range)
-            }
+        for (range, color) in markRanges where range.location >= 0 && range.location + range.length <= nsLength {
+            attributed.addAttribute(.backgroundColor,
+                                    value: color.nsColor.withAlphaComponent(0.5),
+                                    range: range)
         }
 
         for searchRange in searchRanges where searchRange.location >= 0

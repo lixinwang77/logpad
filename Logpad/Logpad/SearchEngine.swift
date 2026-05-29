@@ -56,9 +56,13 @@ struct ByteNeedle {
 final class SearchEngine: ObservableObject {
     @Published var results: [FilterResult] = []
     @Published var isSearching: Bool = false
-    @Published var markResults: [Int: [(NSRange, HighlightColor)]] = [:]
 
-    /// Incremented whenever `results` or `markResults` change, so views can
+    /// Active text marks. Mark highlights are computed lazily per visible row
+    /// (see `markRanges(in:)`) rather than precomputed across the whole file,
+    /// so adding a mark never triggers a full-file scan.
+    @Published private(set) var marks: [HighlightMark] = []
+
+    /// Incremented whenever `results` or `marks` change, so views can
     /// cheaply detect that visible highlights need to be refreshed.
     @Published private(set) var revision: Int = 0
 
@@ -73,7 +77,6 @@ final class SearchEngine: ObservableObject {
     private(set) var currentMatchRange: NSRange?
 
     private var searchTask: Task<Void, Never>?
-    private var markTask: Task<Void, Never>?
 
     private static let debounceNanos: UInt64 = 250_000_000
 
@@ -194,47 +197,30 @@ final class SearchEngine: ObservableObject {
         }
     }
 
-    func searchMarks(_ marks: [HighlightMark],
-                     lineStream: @escaping (() -> Bool, (Int, UnsafeRawBufferPointer) -> Void) -> Void) {
-        markTask?.cancel()
-        let activeMarks = marks.filter { !$0.text.isEmpty }
+    /// Adds a text mark. Highlights are rendered lazily as rows scroll into
+    /// view, so this is O(1) regardless of file size — no full-file scan.
+    func addMark(_ mark: HighlightMark) {
+        guard !mark.text.isEmpty else { return }
+        marks.append(mark)
+        revision &+= 1
+    }
 
-        guard !activeMarks.isEmpty else {
-            markResults = [:]
-            revision &+= 1
-            return
-        }
-
-        markTask = Task.detached(priority: .userInitiated) { [weak self] in
-            var newResults: [Int: [(NSRange, HighlightColor)]] = [:]
-            let prepared = activeMarks.map {
-                (needle: ByteNeedle($0.text, caseInsensitive: true), text: $0.text, color: $0.color)
-            }
-
-            // Single sequential pass; byte-prefilter, decode only on a hit.
-            lineStream({ Task.isCancelled }) { lineNumber, bytes in
-                guard prepared.contains(where: { $0.needle.isContained(in: bytes) }) else { return }
-                let line = String(decoding: bytes, as: UTF8.self)
-
-                for item in prepared {
-                    var searchStart = line.startIndex
-                    while let range = line.range(of: item.text,
-                                                 options: [.caseInsensitive],
-                                                 range: searchStart..<line.endIndex) {
-                        newResults[lineNumber, default: []].append((NSRange(range, in: line), item.color))
-                        searchStart = range.upperBound
-                    }
-                }
-            }
-
-            if Task.isCancelled { return }
-
-            await MainActor.run { [weak self] in
-                guard let self else { return }
-                self.markResults = newResults
-                self.revision &+= 1
+    /// Computes the mark highlight ranges for a single line's content. Called
+    /// per visible row during rendering, so the cost scales with the viewport
+    /// (a few dozen rows) rather than the whole file.
+    func markRanges(in content: String) -> [(NSRange, HighlightColor)] {
+        guard !marks.isEmpty, !content.isEmpty else { return [] }
+        var result: [(NSRange, HighlightColor)] = []
+        for mark in marks where !mark.text.isEmpty {
+            var searchStart = content.startIndex
+            while let range = content.range(of: mark.text,
+                                            options: [.caseInsensitive],
+                                            range: searchStart..<content.endIndex) {
+                result.append((NSRange(range, in: content), mark.color))
+                searchStart = range.upperBound
             }
         }
+        return result
     }
 
     func clear() {
@@ -247,8 +233,8 @@ final class SearchEngine: ObservableObject {
     }
 
     func clearMarks() {
-        markTask?.cancel()
-        markResults = [:]
+        guard !marks.isEmpty else { return }
+        marks = []
         revision &+= 1
     }
 }

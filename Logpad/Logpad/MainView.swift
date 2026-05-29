@@ -14,7 +14,6 @@ struct MainView: View {
     @State private var langKey: Int = 0
     @State private var isSearchFieldFocused = false
     @State private var currentSearchIndex = 0
-    @State private var highlightMarks: [HighlightMark] = []
     @State private var showMarkMenu = false
     @State private var pendingMarkText = ""
     @State private var showGoToLine = false
@@ -132,9 +131,7 @@ struct MainView: View {
     }
 
     private func addHighlightMark(text: String, color: HighlightColor) {
-        let mark = HighlightMark(text: text, color: color)
-        highlightMarks.append(mark)
-        searchEngine.searchMarks(highlightMarks, lineStream: fileReader.forEachLineBytes)
+        searchEngine.addMark(HighlightMark(text: text, color: color))
     }
 
     @ViewBuilder
