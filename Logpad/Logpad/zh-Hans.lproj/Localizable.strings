@@ -18,6 +18,11 @@
 "Results" = "结果";
 "No results" = "无结果";
 
+/* External change */
+"fileChangedMessage" = "该文件已在 Logpad 外部被修改。";
+"Reload" = "重新加载";
+"Dismiss" = "忽略";
+
 /* Empty state */
 "No file open" = "未打开文件";
 "Drag & drop a log file here, or" = "拖放日志文件到这里，或";

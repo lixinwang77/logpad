@@ -42,6 +42,22 @@ struct VirtualLogView: NSViewRepresentable {
         context.coordinator.tableView = tableView
 
         scrollView.documentView = tableView
+
+        // Continuously track the top visible line so a reload can restore it.
+        let clip = scrollView.contentView
+        clip.postsBoundsChangedNotifications = true
+        context.coordinator.boundsObserver = NotificationCenter.default.addObserver(
+            forName: NSView.boundsDidChangeNotification,
+            object: clip,
+            queue: .main
+        ) { [weak coord = context.coordinator] _ in
+            guard let coord, let tv = coord.tableView else { return }
+            let visible = tv.rows(in: tv.visibleRect)
+            if visible.length > 0 {
+                coord.topVisibleLine = visible.location + 1
+            }
+        }
+
         return scrollView
     }
 
@@ -53,15 +69,28 @@ struct VirtualLogView: NSViewRepresentable {
         let total = fileReader.totalLines
         let containerWidth = scrollView.contentSize.width
 
+        // A reload (not a fresh open) bumps reloadGeneration; capture the current
+        // top line before the upcoming re-index resets the table, so we can
+        // restore it once the new line count arrives.
+        if coord.lastReloadGeneration != fileReader.reloadGeneration {
+            coord.lastReloadGeneration = fileReader.reloadGeneration
+            coord.pendingRestoreLine = coord.topVisibleLine
+        }
+
         if coord.lastTotalLines != total {
             coord.lastTotalLines = total
             coord.recomputeWidth(containerWidth: containerWidth)
             tableView.tableColumns.first?.width = coord.contentWidth
             tableView.reloadData()
             if total > 0 {
-                tableView.scrollRowToVisible(0)
-                scrollView.contentView.scroll(to: .zero)
-                scrollView.reflectScrolledClipView(scrollView.contentView)
+                if let restore = coord.pendingRestoreLine {
+                    coord.pendingRestoreLine = nil
+                    coord.scrollRowToTop(min(max(restore - 1, 0), total - 1))
+                } else {
+                    tableView.scrollRowToVisible(0)
+                    scrollView.contentView.scroll(to: .zero)
+                    scrollView.reflectScrolledClipView(scrollView.contentView)
+                }
             }
         } else if coord.lastRevision != searchEngine.revision {
             // Highlights changed: refresh only the rows currently on screen.
@@ -91,12 +120,23 @@ struct VirtualLogView: NSViewRepresentable {
         var lastTotalLines = -1
         var lastRevision = -1
         var contentWidth: CGFloat = 1000
+        /// 1-based line currently at the top of the viewport, kept in sync via
+        /// the scroll bounds observer.
+        var topVisibleLine = 1
+        /// Top line to restore after a reload-triggered re-index completes.
+        var pendingRestoreLine: Int?
+        var lastReloadGeneration = 0
+        var boundsObserver: NSObjectProtocol?
 
         private static let rowIdentifier = NSUserInterfaceItemIdentifier("LogRowView")
         private static let measureFont = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
 
         init(_ parent: VirtualLogView) {
             self.parent = parent
+        }
+
+        deinit {
+            if let boundsObserver { NotificationCenter.default.removeObserver(boundsObserver) }
         }
 
         func recomputeWidth(containerWidth: CGFloat) {

@@ -18,6 +18,11 @@
 "Results" = "Results";
 "No results" = "No results";
 
+/* External change */
+"fileChangedMessage" = "This file has been modified outside Logpad.";
+"Reload" = "Reload";
+"Dismiss" = "Dismiss";
+
 /* Empty state */
 "No file open" = "No file open";
 "Drag & drop a log file here, or" = "Drag & drop a log file here, or";

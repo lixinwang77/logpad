@@ -149,6 +149,14 @@ struct MainView: View {
 
             Divider()
 
+            if fileReader.fileChangedExternally {
+                FileChangedBanner(
+                    onReload: { fileReader.reload() },
+                    onDismiss: { fileReader.fileChangedExternally = false }
+                )
+                Divider()
+            }
+
             if splitMode == .none {
                 LogContentView(
                     fileReader: fileReader,
@@ -468,6 +476,27 @@ struct FilterResultView: View {
             }
         }
         .frame(minWidth: 200)
+    }
+}
+
+struct FileChangedBanner: View {
+    let onReload: () -> Void
+    let onDismiss: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundColor(.orange)
+            Text(i18n.str("fileChangedMessage"))
+                .font(.callout)
+            Spacer()
+            Button(i18n.str("Reload"), action: onReload)
+                .keyboardShortcut("r", modifiers: .command)
+            Button(i18n.str("Dismiss"), action: onDismiss)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(Color.orange.opacity(0.12))
     }
 }
 

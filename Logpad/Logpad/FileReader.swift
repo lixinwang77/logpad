@@ -11,9 +11,21 @@ final class FileReader: ObservableObject {
     /// UI (rendering) and the background search task can't interleave seeks.
     private let ioLock = NSLock()
 
+    /// Watches the open file for external writes / deletion / replacement.
+    private var watchSource: DispatchSourceFileSystemObject?
+    /// Coalesces bursts of file-system events (e.g. an actively appended log)
+    /// into a single change notification.
+    private var changeDebounce: DispatchWorkItem?
+
     @Published var isLoading: Bool = false
     @Published var error: String?
     @Published private(set) var fileName: String = ""
+    /// Set when the file is modified on disk outside the app; the UI surfaces a
+    /// reload prompt. Cleared by `reload()` or when dismissed.
+    @Published var fileChangedExternally: Bool = false
+    /// Bumped by `reload()` (not by opening a new file) so the renderer can tell
+    /// a reload apart from a fresh open and restore the prior scroll position.
+    @Published private(set) var reloadGeneration: Int = 0
 
     func open(url: URL) {
         close()
@@ -22,6 +34,7 @@ final class FileReader: ObservableObject {
         lineOffsets = [0]
         totalLines = 0
         error = nil
+        fileChangedExternally = false
 
         guard FileManager.default.fileExists(atPath: url.path) else {
             error = "File does not exist"
@@ -30,10 +43,19 @@ final class FileReader: ObservableObject {
 
         do {
             fileHandle = try FileHandle(forReadingFrom: url)
+            startWatching(url: url)
             indexFile()
         } catch {
             self.error = "Cannot open file: \(error.localizedDescription)"
         }
+    }
+
+    /// Re-indexes the currently open file from disk, clearing the change flag.
+    /// Bumps `reloadGeneration` first so the renderer keeps the scroll position.
+    func reload() {
+        guard let url = filePath else { return }
+        reloadGeneration += 1
+        open(url: url)
     }
 
     private func indexFile() {
@@ -184,12 +206,55 @@ final class FileReader: ObservableObject {
     }
 
     func close() {
+        stopWatching()
         ioLock.lock()
         defer { ioLock.unlock() }
         try? fileHandle?.close()
         fileHandle = nil
         filePath = nil
         fileName = ""
+    }
+
+    // MARK: - External change detection
+
+    /// Opens a lightweight event-only descriptor on the path and reports writes,
+    /// extends, deletes and atomic-replace (rename) so the UI can offer a reload.
+    private func startWatching(url: URL) {
+        stopWatching()
+
+        let fd = Darwin.open(url.path, O_EVTONLY)
+        guard fd >= 0 else { return }
+
+        let source = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: fd,
+            eventMask: [.write, .extend, .delete, .rename, .revoke],
+            queue: DispatchQueue.global(qos: .utility)
+        )
+        source.setEventHandler { [weak self] in
+            self?.scheduleChangeNotification()
+        }
+        source.setCancelHandler { Darwin.close(fd) }
+        watchSource = source
+        source.resume()
+    }
+
+    private func stopWatching() {
+        changeDebounce?.cancel()
+        changeDebounce = nil
+        watchSource?.cancel()
+        watchSource = nil
+    }
+
+    private func scheduleChangeNotification() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.changeDebounce?.cancel()
+            let work = DispatchWorkItem { [weak self] in
+                self?.fileChangedExternally = true
+            }
+            self.changeDebounce = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
+        }
     }
 
     deinit {
