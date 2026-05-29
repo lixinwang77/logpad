@@ -7,6 +7,10 @@ final class FileReader: ObservableObject {
     private var lineOffsets: [UInt64] = [0]
     private(set) var totalLines: Int = 0
 
+    /// Serializes access to the shared file handle so concurrent reads from the
+    /// UI (rendering) and the background search task can't interleave seeks.
+    private let ioLock = NSLock()
+
     @Published var isLoading: Bool = false
     @Published var error: String?
 
@@ -42,34 +46,46 @@ final class FileReader: ObservableObject {
             guard let self = self else { return }
 
             var offsets: [UInt64] = [0]
-            let chunkSize: UInt64 = 1024 * 1024
-            var buffer = Data()
-            var currentOffset: UInt64 = 0
+            offsets.reserveCapacity(1 << 20)
+            let chunkSize = 4 * 1024 * 1024
+            var base: UInt64 = 0
 
             do {
                 while true {
-                    let data = try handle.read(upToCount: Int(chunkSize))
-                    if data == nil || data!.isEmpty { break }
-                    buffer.append(data!)
+                    guard let data = try handle.read(upToCount: chunkSize), !data.isEmpty else { break }
 
-                    while let newlineIndex = buffer.firstIndex(of: UInt8(ascii: "\n")) {
-                        let idx = buffer.distance(from: buffer.startIndex, to: newlineIndex)
-                        offsets.append(currentOffset + UInt64(idx) + 1)
-                        buffer.removeSubrange(0...idx)
-                        currentOffset += UInt64(idx) + 1
+                    // Scan each chunk in place with memchr; a newline is a single
+                    // byte so it never spans a chunk boundary, and we only record
+                    // offsets (no buffer mutation) — O(n) over the file.
+                    data.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
+                        guard let start = raw.baseAddress else { return }
+                        var ptr = start
+                        var remaining = raw.count
+                        while remaining > 0, let found = memchr(ptr, 0x0A, remaining) {
+                            let hit = UnsafeRawPointer(found)
+                            offsets.append(base + UInt64(hit - start) + 1)
+                            let consumed = (hit - ptr) + 1
+                            ptr = hit + 1
+                            remaining -= consumed
+                        }
                     }
+
+                    base += UInt64(data.count)
                 }
 
-                if !buffer.isEmpty {
-                    offsets.append(currentOffset + UInt64(buffer.count))
+                // Account for a final line that isn't terminated by a newline.
+                if offsets.last != base {
+                    offsets.append(base)
                 }
             } catch {
                 // read truncated
             }
 
             DispatchQueue.main.async {
+                self.ioLock.lock()
                 self.lineOffsets = offsets
                 self.totalLines = offsets.count - 1
+                self.ioLock.unlock()
                 self.isLoading = false
                 NotificationCenter.default.post(name: NSNotification.Name("FileDidLoad"), object: nil)
             }
@@ -77,6 +93,9 @@ final class FileReader: ObservableObject {
     }
 
     func readLine(at lineNumber: Int) -> String? {
+        ioLock.lock()
+        defer { ioLock.unlock() }
+
         guard let handle = fileHandle,
               lineNumber >= 0 && lineNumber < lineOffsets.count else { return nil }
 
@@ -98,6 +117,63 @@ final class FileReader: ObservableObject {
         }
     }
 
+    /// Streams the whole file sequentially (using a dedicated file handle so it
+    /// doesn't contend with per-line UI reads) and invokes `handler` with each
+    /// line's 0-based index and its raw bytes (newline excluded). Callers can
+    /// prefilter on bytes and only decode matching lines, which is much faster
+    /// than building a String per line. The buffer passed to `handler` is only
+    /// valid for the duration of that call. Stops early if `isCancelled`
+    /// returns true.
+    func forEachLineBytes(isCancelled: () -> Bool, _ handler: (Int, UnsafeRawBufferPointer) -> Void) {
+        guard let url = filePath, let handle = try? FileHandle(forReadingFrom: url) else { return }
+        defer { try? handle.close() }
+
+        let chunkSize = 4 * 1024 * 1024
+        var carry = Data()
+        var lineIndex = 0
+
+        while true {
+            if isCancelled() { return }
+            guard let data = try? handle.read(upToCount: chunkSize), !data.isEmpty else { break }
+
+            var buffer: Data
+            if carry.isEmpty {
+                buffer = data
+            } else {
+                buffer = carry
+                buffer.append(data)
+                carry = Data()
+            }
+
+            var leftover = Data()
+            buffer.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
+                guard let start = raw.baseAddress else { return }
+                var ptr = start
+                var remaining = raw.count
+                while remaining > 0, let found = memchr(ptr, 0x0A, remaining) {
+                    let hit = UnsafeRawPointer(found)
+                    let lineLen = hit - ptr
+                    handler(lineIndex, UnsafeRawBufferPointer(start: ptr, count: lineLen))
+                    lineIndex += 1
+                    let consumed = lineLen + 1
+                    ptr = hit + 1
+                    remaining -= consumed
+                }
+                if remaining > 0 {
+                    leftover = Data(bytes: ptr, count: remaining)
+                }
+            }
+            carry = leftover
+        }
+
+        if isCancelled() { return }
+        if !carry.isEmpty {
+            carry.withUnsafeBytes { raw in
+                handler(lineIndex, raw)
+            }
+        }
+    }
+
     func readLines(from: Int, count: Int) -> [LogLine] {
         guard from >= 0 else { return [] }
         var lines: [LogLine] = []
@@ -110,6 +186,8 @@ final class FileReader: ObservableObject {
     }
 
     func close() {
+        ioLock.lock()
+        defer { ioLock.unlock() }
         try? fileHandle?.close()
         fileHandle = nil
         filePath = nil

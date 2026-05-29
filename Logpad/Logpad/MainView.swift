@@ -99,9 +99,7 @@ struct MainView: View {
     }
 
     private func performSearch() {
-        searchEngine.search(condition: filterCondition, totalLines: fileReader.totalLines) { lineNumber in
-            fileReader.readLine(at: lineNumber)
-        } onComplete: { [self] in
+        searchEngine.search(condition: filterCondition, lineStream: fileReader.forEachLineBytes) { [self] in
             currentSearchIndex = 0
             if let first = searchEngine.results.first {
                 targetLine = first.line.id
@@ -132,9 +130,7 @@ struct MainView: View {
     private func addHighlightMark(text: String, color: HighlightColor) {
         let mark = HighlightMark(text: text, color: color)
         highlightMarks.append(mark)
-        searchEngine.searchMarks(highlightMarks, totalLines: fileReader.totalLines) { lineNumber in
-            fileReader.readLine(at: lineNumber)
-        }
+        searchEngine.searchMarks(highlightMarks, lineStream: fileReader.forEachLineBytes)
     }
 
     @ViewBuilder
@@ -202,9 +198,7 @@ struct MainView: View {
             }
         }
         .onChange(of: filterCondition) { _, newCondition in
-            searchEngine.search(condition: newCondition, totalLines: fileReader.totalLines) { lineNumber in
-                fileReader.readLine(at: lineNumber)
-            }
+            searchEngine.search(condition: newCondition, lineStream: fileReader.forEachLineBytes)
         }
         .sheet(isPresented: $showMarkMenu) {
             MarkMenuView(text: pendingMarkText) { color in
@@ -221,69 +215,14 @@ struct LogContentView: View {
     @Binding var targetLine: Int?
     var onTextSelected: ((String) -> Void)?
 
-    private let lineHeight: CGFloat = 18
-
     var body: some View {
-        GeometryReader { geo in
-            ScrollViewReader { proxy in
-                ScrollView([.horizontal, .vertical]) {
-                    LazyVStack(alignment: .leading, spacing: 0) {
-                        let total = fileReader.totalLines
-
-                        if total > 0 {
-                            ForEach(0..<total, id: \.self) { row in
-                                SelectableLogView(
-                                    lineNumber: row + 1,
-                                    content: fileReader.readLine(at: row) ?? "",
-                                    searchHighlightRange: searchEngine.results.first { $0.line.id == row + 1 }?.highlightRange,
-                                    markRanges: searchEngine.markResults[row],
-                                    onMarkText: onTextSelected
-                                )
-                                .id(row + 1)
-                            }
-                        }
-                    }
-                    .frame(width: maxContentWidth(in: geo.size.width), alignment: .leading)
-                }
-                .onChange(of: targetLine) { _, newLine in
-                    if let line = newLine {
-                        withAnimation {
-                            proxy.scrollTo(line, anchor: .topLeading)
-                        }
-                        targetLine = nil
-                    }
-                }
-                .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("FileDidLoad"))) { _ in
-                    DispatchQueue.main.async {
-                        proxy.scrollTo(0, anchor: .top)
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                            proxy.scrollTo(0, anchor: .leading)
-                        }
-                    }
-                }
-            }
-        }
+        VirtualLogView(
+            fileReader: fileReader,
+            searchEngine: searchEngine,
+            targetLine: $targetLine,
+            onTextSelected: onTextSelected
+        )
         .background(Color(nsColor: .textBackgroundColor))
-    }
-
-    private func maxContentWidth(in containerWidth: CGFloat) -> CGFloat {
-        var maxWidth = containerWidth
-        let total = fileReader.totalLines
-        let sampleCount = min(total, 100)
-        for i in 0..<sampleCount {
-            let content = fileReader.readLine(at: i) ?? ""
-            let width = estimateTextWidth(content)
-            if width > maxWidth {
-                maxWidth = width
-            }
-        }
-        return max(maxWidth, containerWidth)
-    }
-
-    private func estimateTextWidth(_ text: String) -> CGFloat {
-        let font = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
-        let size = (text as NSString).size(withAttributes: [.font: font])
-        return size.width + 58
     }
 }
 

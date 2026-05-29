@@ -1,109 +1,216 @@
 import Foundation
 import Combine
 
+/// Fast substring test on raw UTF-8 bytes, used as a cheap prefilter so we only
+/// build a `String` for lines that actually contain the term. Case-insensitive
+/// matching folds ASCII A–Z only (sufficient for log content); the matched line
+/// is afterwards confirmed with a Unicode-aware `String` search.
+struct ByteNeedle {
+    private let raw: [UInt8]
+    private let folded: [UInt8]
+    private let caseInsensitive: Bool
+
+    init(_ text: String, caseInsensitive: Bool) {
+        self.caseInsensitive = caseInsensitive
+        let bytes = Array(text.utf8)
+        raw = bytes
+        folded = bytes.map { ($0 >= 65 && $0 <= 90) ? $0 &+ 32 : $0 }
+    }
+
+    func isContained(in haystack: UnsafeRawBufferPointer) -> Bool {
+        let m = raw.count
+        let n = haystack.count
+        if m == 0 { return true }
+        if m > n { return false }
+
+        if !caseInsensitive {
+            return raw.withUnsafeBytes { needlePtr in
+                memmem(haystack.baseAddress, n, needlePtr.baseAddress, m) != nil
+            }
+        }
+
+        let bytes = haystack.bindMemory(to: UInt8.self)
+        let first = folded[0]
+        var i = 0
+        let last = n - m
+        while i <= last {
+            var a = bytes[i]
+            if a >= 65 && a <= 90 { a &+= 32 }
+            if a == first {
+                var matched = true
+                var j = 1
+                while j < m {
+                    var c = bytes[i + j]
+                    if c >= 65 && c <= 90 { c &+= 32 }
+                    if c != folded[j] { matched = false; break }
+                    j += 1
+                }
+                if matched { return true }
+            }
+            i += 1
+        }
+        return false
+    }
+}
+
 final class SearchEngine: ObservableObject {
     @Published var results: [FilterResult] = []
     @Published var isSearching: Bool = false
-    @Published var markResults: [Int: [(Range<String.Index>, HighlightColor)]] = [:]
+    @Published var markResults: [Int: [(NSRange, HighlightColor)]] = [:]
 
-    private var allLines: [LogLine] = []
+    /// Incremented whenever `results` or `markResults` change, so views can
+    /// cheaply detect that visible highlights need to be refreshed.
+    @Published private(set) var revision: Int = 0
+
+    /// Fast lookup of a line's search-match range keyed by 1-based line id.
+    private(set) var resultLineIndex: [Int: NSRange] = [:]
+
     private var searchTask: Task<Void, Never>?
+    private var markTask: Task<Void, Never>?
 
-    func indexLines(_ lines: [LogLine]) {
-        allLines = lines
+    private static let debounceNanos: UInt64 = 250_000_000
+
+    func searchRange(forLineID id: Int) -> NSRange? {
+        resultLineIndex[id]
     }
 
-    func search(condition: FilterCondition, totalLines: Int, lineReader: @escaping (Int) -> String?, onComplete: (() -> Void)? = nil) {
+    func search(condition: FilterCondition,
+                lineStream: @escaping (() -> Bool, (Int, UnsafeRawBufferPointer) -> Void) -> Void,
+                onComplete: (() -> Void)? = nil) {
         searchTask?.cancel()
-        guard !condition.keyword.isEmpty else {
+
+        let keyword = condition.keyword
+        guard !keyword.isEmpty else {
             results = []
+            resultLineIndex = [:]
+            isSearching = false
+            revision &+= 1
+            onComplete?()
             return
         }
 
         isSearching = true
-        results = []
+        let isRegex = condition.isRegex
+        let caseSensitive = condition.isCaseSensitive
 
-        searchTask = Task { @MainActor in
-            var found: [FilterResult] = []
+        searchTask = Task.detached(priority: .userInitiated) { [weak self] in
+            // Debounce: rapid successive calls cancel the previous task before
+            // it gets past this sleep, so we only scan once typing settles.
+            try? await Task.sleep(nanoseconds: SearchEngine.debounceNanos)
+            if Task.isCancelled { return }
 
-            let regex: NSRegularExpression? = condition.isRegex ? try? NSRegularExpression(
-                pattern: condition.keyword,
-                options: condition.isCaseSensitive ? [] : [.caseInsensitive]
-            ) : nil
+            let regex: NSRegularExpression? = isRegex
+                ? try? NSRegularExpression(pattern: keyword,
+                                           options: caseSensitive ? [] : [.caseInsensitive])
+                : nil
 
-            for lineNumber in 0..<totalLines {
-                if Task.isCancelled { break }
-
-                let content = lineReader(lineNumber)
-                guard let lineContent = content else { continue }
-
-                var range: Range<String.Index>?
-
-                if let rx = regex {
-                    if let match = rx.firstMatch(in: lineContent, range: NSRange(lineContent.startIndex..., in: lineContent)) {
-                        range = Range(match.range, in: lineContent)
-                    }
-                } else {
-                    let searchContent = condition.isCaseSensitive ? lineContent : lineContent.lowercased()
-                    let keyword = condition.isCaseSensitive ? condition.keyword : condition.keyword.lowercased()
-                    if let rangeLower = searchContent.range(of: keyword) {
-                        let startDistance = searchContent.distance(from: searchContent.startIndex, to: rangeLower.lowerBound)
-                        let endDistance = searchContent.distance(from: searchContent.startIndex, to: rangeLower.upperBound)
-                        let startIndex = lineContent.index(lineContent.startIndex, offsetBy: startDistance)
-                        let endIndex = lineContent.index(lineContent.startIndex, offsetBy: endDistance)
-                        range = startIndex..<endIndex
-                    }
+            // Invalid regex: report no matches instead of falling back to literal.
+            if isRegex && regex == nil {
+                await MainActor.run { [weak self] in
+                    guard let self else { return }
+                    self.results = []
+                    self.resultLineIndex = [:]
+                    self.isSearching = false
+                    self.revision &+= 1
+                    onComplete?()
                 }
-
-                if range != nil {
-                    let line = LogLine(id: lineNumber + 1, content: lineContent)
-                    found.append(FilterResult(line: line, highlightRange: range))
-                }
+                return
             }
 
-            self.results = found
-            self.isSearching = false
-            onComplete?()
+            var found: [FilterResult] = []
+            var index: [Int: NSRange] = [:]
+            let options: String.CompareOptions = caseSensitive ? [] : [.caseInsensitive]
+            let needle = ByteNeedle(keyword, caseInsensitive: !caseSensitive)
+
+            lineStream({ Task.isCancelled }) { lineNumber, bytes in
+                if let rx = regex {
+                    // Regex requires a String; build it per line.
+                    let line = String(decoding: bytes, as: UTF8.self)
+                    let full = NSRange(line.startIndex..., in: line)
+                    if let match = rx.firstMatch(in: line, range: full),
+                       let r = Range(match.range, in: line) {
+                        let id = lineNumber + 1
+                        found.append(FilterResult(line: LogLine(id: id, content: line), highlightRange: r))
+                        index[id] = NSRange(r, in: line)
+                    }
+                    return
+                }
+
+                // Literal path: cheap byte prefilter, decode only on a hit.
+                guard needle.isContained(in: bytes) else { return }
+                let line = String(decoding: bytes, as: UTF8.self)
+                guard let r = line.range(of: keyword, options: options) else { return }
+                let id = lineNumber + 1
+                found.append(FilterResult(line: LogLine(id: id, content: line), highlightRange: r))
+                index[id] = NSRange(r, in: line)
+            }
+
+            if Task.isCancelled { return }
+
+            await MainActor.run { [weak self] in
+                guard let self else { return }
+                self.results = found
+                self.resultLineIndex = index
+                self.isSearching = false
+                self.revision &+= 1
+                onComplete?()
+            }
         }
     }
 
-    func searchMarks(_ marks: [HighlightMark], totalLines: Int, lineReader: @escaping (Int) -> String?) {
-        var newResults: [Int: [(Range<String.Index>, HighlightColor)]] = [:]
+    func searchMarks(_ marks: [HighlightMark],
+                     lineStream: @escaping (() -> Bool, (Int, UnsafeRawBufferPointer) -> Void) -> Void) {
+        markTask?.cancel()
+        let activeMarks = marks.filter { !$0.text.isEmpty }
 
-        for mark in marks {
-            for lineNumber in 0..<totalLines {
-                let content = lineReader(lineNumber) ?? ""
-                let searchContent = content.lowercased()
-                let keyword = mark.text.lowercased()
-
-                var searchStart = searchContent.startIndex
-                while let range = searchContent.range(of: keyword, range: searchStart..<searchContent.endIndex) {
-                    let startDistance = searchContent.distance(from: searchContent.startIndex, to: range.lowerBound)
-                    let endDistance = searchContent.distance(from: searchContent.startIndex, to: range.upperBound)
-                    let startIndex = content.index(content.startIndex, offsetBy: startDistance)
-                    let endIndex = content.index(content.startIndex, offsetBy: endDistance)
-                    let highlightRange = startIndex..<endIndex
-
-                    if newResults[lineNumber] == nil {
-                        newResults[lineNumber] = []
-                    }
-                    newResults[lineNumber]?.append((highlightRange, mark.color))
-
-                    searchStart = range.upperBound
-                }
-            }
+        guard !activeMarks.isEmpty else {
+            markResults = [:]
+            revision &+= 1
+            return
         }
 
-        self.markResults = newResults
-        self.objectWillChange.send()
+        markTask = Task.detached(priority: .userInitiated) { [weak self] in
+            var newResults: [Int: [(NSRange, HighlightColor)]] = [:]
+            let prepared = activeMarks.map {
+                (needle: ByteNeedle($0.text, caseInsensitive: true), text: $0.text, color: $0.color)
+            }
+
+            // Single sequential pass; byte-prefilter, decode only on a hit.
+            lineStream({ Task.isCancelled }) { lineNumber, bytes in
+                guard prepared.contains(where: { $0.needle.isContained(in: bytes) }) else { return }
+                let line = String(decoding: bytes, as: UTF8.self)
+
+                for item in prepared {
+                    var searchStart = line.startIndex
+                    while let range = line.range(of: item.text,
+                                                 options: [.caseInsensitive],
+                                                 range: searchStart..<line.endIndex) {
+                        newResults[lineNumber, default: []].append((NSRange(range, in: line), item.color))
+                        searchStart = range.upperBound
+                    }
+                }
+            }
+
+            if Task.isCancelled { return }
+
+            await MainActor.run { [weak self] in
+                guard let self else { return }
+                self.markResults = newResults
+                self.revision &+= 1
+            }
+        }
     }
 
     func clear() {
-        results = []
         searchTask?.cancel()
+        results = []
+        resultLineIndex = [:]
+        revision &+= 1
     }
 
     func clearMarks() {
+        markTask?.cancel()
         markResults = [:]
+        revision &+= 1
     }
 }
