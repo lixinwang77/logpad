@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 struct LogLine: Identifiable, Equatable {
     let id: Int
@@ -27,4 +28,37 @@ enum SplitMode: String, CaseIterable {
     case none
     case horizontal
     case vertical
+}
+
+enum HighlightColor: String, CaseIterable {
+    case red = "Red"
+    case orange = "Orange"
+    case green = "Green"
+    case blue = "Blue"
+    case purple = "Purple"
+
+    var color: Color {
+        switch self {
+        case .red: return .red
+        case .orange: return .orange
+        case .green: return .green
+        case .blue: return .blue
+        case .purple: return .purple
+        }
+    }
+
+    var nsColor: NSColor {
+        switch self {
+        case .red: return .systemRed
+        case .orange: return .systemOrange
+        case .green: return .systemGreen
+        case .blue: return .systemBlue
+        case .purple: return .systemPurple
+        }
+    }
+}
+
+struct HighlightMark: Equatable {
+    let text: String
+    let color: HighlightColor
 }

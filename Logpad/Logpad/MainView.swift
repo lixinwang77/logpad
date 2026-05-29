@@ -14,6 +14,9 @@ struct MainView: View {
     @State private var langKey: Int = 0
     @State private var isSearchFieldFocused = false
     @State private var currentSearchIndex = 0
+    @State private var highlightMarks: [HighlightMark] = []
+    @State private var showMarkMenu = false
+    @State private var pendingMarkText = ""
 
     var body: some View {
         Group {
@@ -67,6 +70,14 @@ struct MainView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SearchPrevious"))) { _ in
             jumpToPreviousResult()
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ShowMarkMenu"))) { notification in
+            print("DEBUG: ShowMarkMenu received, object = \(String(describing: notification.object))")
+            if let text = notification.object as? String, !text.isEmpty {
+                pendingMarkText = text
+                showMarkMenu = true
+                print("DEBUG: pendingMarkText = \(pendingMarkText), showMarkMenu = \(showMarkMenu)")
+            }
+        }
     }
 
     private func performSearch() {
@@ -100,6 +111,17 @@ struct MainView: View {
         targetLine = searchEngine.results[currentSearchIndex].line.id
     }
 
+    private func addHighlightMark(text: String, color: HighlightColor) {
+        print("DEBUG: addHighlightMark called, text='\(text)', color=\(color)")
+        let mark = HighlightMark(text: text, color: color)
+        highlightMarks.append(mark)
+        print("DEBUG: highlightMarks count = \(highlightMarks.count)")
+        searchEngine.searchMarks(highlightMarks, totalLines: fileReader.totalLines) { lineNumber in
+            fileReader.readLine(at: lineNumber)
+        }
+        print("DEBUG: searchMarks completed, markResults count = \(searchEngine.markResults.count)")
+    }
+
     @ViewBuilder
     private var mainContent: some View {
         VStack(spacing: 0) {
@@ -118,15 +140,23 @@ struct MainView: View {
             if splitMode == .none {
                 LogContentView(
                     fileReader: fileReader,
-                    searchResults: searchEngine.results,
-                    targetLine: $targetLine
+                    searchEngine: searchEngine,
+                    targetLine: $targetLine,
+                    onTextSelected: { text in
+                        pendingMarkText = text
+                        showMarkMenu = true
+                    }
                 )
             } else if splitMode == .vertical {
                 HSplitView {
                     LogContentView(
                         fileReader: fileReader,
-                        searchResults: searchEngine.results,
-                        targetLine: $targetLine
+                        searchEngine: searchEngine,
+                        targetLine: $targetLine,
+                        onTextSelected: { text in
+                            pendingMarkText = text
+                            showMarkMenu = true
+                        }
                     )
                     FilterResultView(
                         results: searchEngine.results,
@@ -139,8 +169,12 @@ struct MainView: View {
                 VStack(spacing: 0) {
                     LogContentView(
                         fileReader: fileReader,
-                        searchResults: searchEngine.results,
-                        targetLine: $targetLine
+                        searchEngine: searchEngine,
+                        targetLine: $targetLine,
+                        onTextSelected: { text in
+                            pendingMarkText = text
+                            showMarkMenu = true
+                        }
                     )
                     Divider()
                     FilterResultView(
@@ -157,13 +191,21 @@ struct MainView: View {
                 fileReader.readLine(at: lineNumber)
             }
         }
+        .sheet(isPresented: $showMarkMenu) {
+            MarkMenuView(text: pendingMarkText) { color in
+                print("DEBUG: MarkMenuView selected color = \(color)")
+                addHighlightMark(text: pendingMarkText, color: color)
+                showMarkMenu = false
+            }
+        }
     }
 }
 
 struct LogContentView: View {
     @ObservedObject var fileReader: FileReader
-    let searchResults: [FilterResult]
+    @ObservedObject var searchEngine: SearchEngine
     @Binding var targetLine: Int?
+    var onTextSelected: ((String) -> Void)?
 
     private let lineHeight: CGFloat = 18
 
@@ -176,10 +218,12 @@ struct LogContentView: View {
 
                         if total > 0 {
                             ForEach(0..<total, id: \.self) { row in
-                                LogLineRow(
+                                SelectableLogView(
                                     lineNumber: row + 1,
                                     content: fileReader.readLine(at: row) ?? "",
-                                    highlightRange: searchResults.first { $0.line.id == row + 1 }?.highlightRange
+                                    searchHighlightRange: searchEngine.results.first { $0.line.id == row + 1 }?.highlightRange,
+                                    markRanges: searchEngine.markResults[row],
+                                    onMarkText: onTextSelected
                                 )
                                 .id(row + 1)
                             }
@@ -240,6 +284,8 @@ struct LogLineRow: View {
     let lineNumber: Int
     let content: String
     let highlightRange: Range<String.Index>?
+    let markRanges: [(Range<String.Index>, HighlightColor)]?
+    let onMarkText: ((String) -> Void)?
 
     var body: some View {
         HStack(spacing: 0) {
@@ -249,27 +295,69 @@ struct LogLineRow: View {
                 .frame(width: 50, alignment: .trailing)
                 .padding(.trailing, 8)
 
-            highlightedText
+            highlightedContent
         }
         .padding(.vertical, 1)
         .textSelection(.enabled)
+        .onTapGesture(count: 2) {
+            // Double-click to select word and show mark menu
+            if let pasteboard = NSPasteboard.general.string(forType: .string),
+               !pasteboard.isEmpty {
+                onMarkText?(pasteboard)
+            }
+        }
+        .contextMenu {
+            Button("Mark") {
+                if let pasteboard = NSPasteboard.general.string(forType: .string),
+                   !pasteboard.isEmpty {
+                    onMarkText?(pasteboard)
+                }
+            }
+        }
     }
 
-    @ViewBuilder
-    private var highlightedText: some View {
-        if let range = highlightRange {
-            HStack(spacing: 0) {
-                Text(String(content[..<range.lowerBound]))
-                Text(String(content[range]))
-                    .foregroundColor(.black)
-                    .background(Color.yellow)
-                Text(String(content[range.upperBound...]))
+    private var highlightedContent: some View {
+        let contentLength = content.count
+        var ranges: [(Int, Int, HighlightColor?)] = []  // (start, end, color) - nil means yellow search highlight
+
+        // Add mark highlights
+        if let marks = markRanges {
+            for (range, color) in marks {
+                let start = content.distance(from: content.startIndex, to: range.lowerBound)
+                let end = content.distance(from: content.startIndex, to: range.upperBound)
+                ranges.append((start, end, color))
             }
-            .font(.system(size: 13, design: .monospaced))
-        } else {
-            Text(content)
-                .font(.system(size: 13, design: .monospaced))
         }
+
+        // Add search highlight (yellow)
+        if let searchRange = highlightRange {
+            let start = content.distance(from: content.startIndex, to: searchRange.lowerBound)
+            let end = content.distance(from: content.startIndex, to: searchRange.upperBound)
+            ranges.append((start, end, nil))
+        }
+
+        if ranges.isEmpty {
+            return AnyView(Text(content).font(.system(size: 13, design: .monospaced)))
+        }
+
+        // Sort ranges by start position
+        ranges.sort { $0.0 < $1.0 }
+
+        // Build text segments as AttributedString for proper concatenation
+        var attributedString = AttributedString(content)
+
+        for (start, end, color) in ranges {
+            guard start >= 0, end <= contentLength, start < end else { continue }
+
+            let startIndex = content.index(content.startIndex, offsetBy: start)
+            let endIndex = content.index(content.startIndex, offsetBy: end)
+
+            if let attrRange = Range(startIndex..<endIndex, in: attributedString) {
+                attributedString[attrRange].backgroundColor = color?.nsColor.withAlphaComponent(0.5) ?? NSColor.systemYellow
+            }
+        }
+
+        return AnyView(Text(attributedString).font(.system(size: 13, design: .monospaced)))
     }
 }
 
@@ -488,5 +576,36 @@ struct ErrorView: View {
                 onRetry()
             }
         }
+    }
+}
+
+struct MarkMenuView: View {
+    let text: String
+    let onSelect: (HighlightColor) -> Void
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Text("Select highlight color for:")
+                .font(.headline)
+            Text("\"\(text)\"")
+                .font(.system(.body, design: .monospaced))
+                .padding()
+                .background(Color(nsColor: .controlBackgroundColor))
+                .cornerRadius(6)
+
+            HStack(spacing: 12) {
+                ForEach(HighlightColor.allCases, id: \.self) { color in
+                    Button {
+                        onSelect(color)
+                    } label: {
+                        Circle()
+                            .fill(color.color)
+                            .frame(width: 30, height: 30)
+                    }
+                }
+            }
+        }
+        .padding()
+        .frame(width: 300)
     }
 }

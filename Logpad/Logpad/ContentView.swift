@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 struct ContentView: View {
     var body: some View {
@@ -33,6 +34,20 @@ class ShiftEnterMonitor {
         if let monitor = monitor {
             NSEvent.removeMonitor(monitor)
             self.monitor = nil
+        }
+    }
+}
+
+class MarkCoordinator {
+    static let shared = MarkCoordinator()
+    var selectedText: String?
+
+    func requestMarkText() {
+        if let text = selectedText, !text.isEmpty {
+            NotificationCenter.default.post(
+                name: NSNotification.Name("ShowMarkMenu"),
+                object: text
+            )
         }
     }
 }

@@ -24,6 +24,11 @@ struct LogpadApp: App {
                     )
                 }
                 .keyboardShortcut("f", modifiers: .command)
+
+                Button("Mark") {
+                    MarkCoordinator.shared.requestMarkText()
+                }
+                .keyboardShortcut("m", modifiers: .command)
             }
         }
     }
