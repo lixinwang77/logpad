@@ -644,6 +644,9 @@ struct SearchFieldView: View {
                 .focused($focused)
                 .onSubmit {
                     onSubmit()
+                    // SwiftUI resigns the field on submit; re-assert focus on the
+                    // next tick so repeated Enter keeps cycling through matches.
+                    DispatchQueue.main.async { focused = true }
                 }
         }
         .onChange(of: isTextFieldFocused) { _, newValue in
