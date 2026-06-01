@@ -429,20 +429,20 @@ struct ToolbarView: View {
                 .foregroundColor(splitMode == .none ? .accentColor : .secondary)
 
                 Button {
-                    splitMode = .vertical
-                } label: {
-                    Image(systemName: "rectangle.split.2x1")
-                }
-                .buttonStyle(.borderless)
-                .foregroundColor(splitMode == .vertical ? .accentColor : .secondary)
-
-                Button {
                     splitMode = .horizontal
                 } label: {
                     Image(systemName: "rectangle.split.1x2")
                 }
                 .buttonStyle(.borderless)
                 .foregroundColor(splitMode == .horizontal ? .accentColor : .secondary)
+
+                Button {
+                    splitMode = .vertical
+                } label: {
+                    Image(systemName: "rectangle.split.2x1")
+                }
+                .buttonStyle(.borderless)
+                .foregroundColor(splitMode == .vertical ? .accentColor : .secondary)
             }
 
             Spacer()
