@@ -20,6 +20,10 @@ final class FileReader: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var error: String?
     @Published private(set) var fileName: String = ""
+    /// Detected text encoding of the open file (UTF-8, GB18030, Big5, …).
+    /// Determined once in `open()` from a 64 KB head sample and reused by both
+    /// the line reader and the search engine.
+    @Published private(set) var encoding: String.Encoding = .utf8
     /// Set when the file is modified on disk outside the app; the UI surfaces a
     /// reload prompt. Cleared by `reload()` or when dismissed.
     @Published var fileChangedExternally: Bool = false
@@ -35,6 +39,7 @@ final class FileReader: ObservableObject {
         totalLines = 0
         error = nil
         fileChangedExternally = false
+        encoding = .utf8
 
         guard FileManager.default.fileExists(atPath: url.path) else {
             error = "File does not exist"
@@ -43,6 +48,11 @@ final class FileReader: ObservableObject {
 
         do {
             fileHandle = try FileHandle(forReadingFrom: url)
+            // Detect the encoding from a 64 KB head sample via a separate
+            // handle (so the main handle's offset stays at 0). This is fast
+            // and only runs once per open, so doing it on the main thread is
+            // fine and lets the UI display the encoding immediately.
+            encoding = TextEncodingDetector.detect(url: url)
             startWatching(url: url)
             indexFile()
         } catch {
@@ -127,7 +137,10 @@ final class FileReader: ObservableObject {
         do {
             try handle.seek(toOffset: startOffset)
             guard let data = try handle.read(upToCount: Int(endOffset - startOffset)) else { return nil }
-            var line = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .isoLatin1) ?? ""
+            // Use the file's detected encoding; if a single line is somehow
+            // invalid in it (rare — only when the body diverges from the
+            // head sample), fall back to ISO Latin-1 so the line still renders.
+            var line = String(data: data, encoding: encoding) ?? String(data: data, encoding: .isoLatin1) ?? ""
             if line.hasSuffix("\n") {
                 line.removeLast()
             }

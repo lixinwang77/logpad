@@ -108,6 +108,7 @@ final class SearchEngine: ObservableObject {
     }
 
     func search(condition: FilterCondition,
+                encoding: String.Encoding = .utf8,
                 lineStream: @escaping (() -> Bool, (Int, UnsafeRawBufferPointer) -> Void) -> Void,
                 onComplete: (() -> Void)? = nil) {
         searchTask?.cancel()
@@ -164,12 +165,29 @@ final class SearchEngine: ObservableObject {
             var index: [Int: [NSRange]] = [:]
             let options: String.CompareOptions = caseSensitive ? [] : [.caseInsensitive]
             let needle = ByteNeedle(keyword, caseInsensitive: !caseSensitive)
+            // The byte prefilter is only valid when the keyword and the line
+            // share an encoding. UTF-8 always qualifies. For other encodings
+            // the keyword is also valid as a prefilter when it is pure ASCII
+            // (ASCII is byte-invariant across UTF-8/GBK/Big5/Latin-1); for
+            // non-ASCII keywords we have to decode every line instead.
+            let needleIsAscii = keyword.unicodeScalars.allSatisfy { $0.isASCII }
+            let canPrefilter = encoding == .utf8 || needleIsAscii
+            // For non-UTF-8 files, decode using the detected encoding; fall
+            // back to a lenient UTF-8 substitution if a line disagrees with
+            // the head sample (so a single off-encoding line doesn't drop).
+            let decodeLine: (UnsafeRawBufferPointer) -> String = { bytes in
+                if encoding == .utf8 {
+                    return String(decoding: bytes, as: UTF8.self)
+                }
+                return String(data: Data(bytes), encoding: encoding)
+                    ?? String(decoding: bytes, as: UTF8.self)
+            }
 
             lineStream({ Task.isCancelled }) { lineNumber, bytes in
                 if let rx = regex {
                     // Regex requires a String; build it per line. Collect every
                     // match so multiple hits on one line are all navigable.
-                    let line = String(decoding: bytes, as: UTF8.self)
+                    let line = decodeLine(bytes)
                     let full = NSRange(line.startIndex..., in: line)
                     let id = lineNumber + 1
                     var ranges: [NSRange] = []
@@ -187,10 +205,11 @@ final class SearchEngine: ObservableObject {
                     return
                 }
 
-                // Literal path: cheap byte prefilter, decode only on a hit, then
-                // walk the line to capture every occurrence of the keyword.
-                guard needle.isContained(in: bytes) else { return }
-                let line = String(decoding: bytes, as: UTF8.self)
+                // Literal path: cheap byte prefilter (when valid for the file's
+                // encoding), decode only on a hit, then walk the line to capture
+                // every occurrence of the keyword.
+                if canPrefilter, !needle.isContained(in: bytes) { return }
+                let line = decodeLine(bytes)
                 let id = lineNumber + 1
                 var ranges: [NSRange] = []
                 let firstResultIdx = found.count

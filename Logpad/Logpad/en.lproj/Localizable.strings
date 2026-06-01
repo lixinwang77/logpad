@@ -45,3 +45,6 @@
 "versionFormat" = "Version %@ (%@)";
 "aboutDescription" = "A lightweight log viewer for macOS";
 "OK" = "OK";
+
+/* Encoding */
+"encodingHint" = "Detected text encoding";

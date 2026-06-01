@@ -45,3 +45,6 @@
 "versionFormat" = "版本 %@（%@）";
 "aboutDescription" = "专为 macOS 设计的轻量级日志查看器";
 "OK" = "好";
+
+/* Encoding */
+"encodingHint" = "已自动检测到的文本编码";

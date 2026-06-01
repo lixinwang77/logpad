@@ -113,7 +113,7 @@ struct MainView: View {
     }
 
     private func performSearch() {
-        searchEngine.search(condition: filterCondition, lineStream: fileReader.forEachLineBytes) { [self] in
+        searchEngine.search(condition: filterCondition, encoding: fileReader.encoding, lineStream: fileReader.forEachLineBytes) { [self] in
             currentSearchIndex = 0
             if let first = searchEngine.results.first {
                 targetLine = first.line.id
@@ -173,7 +173,8 @@ struct MainView: View {
                 onPreviousResult: { jumpToPreviousResult() },
                 onNextResult: { jumpToNextResult() },
                 langKey: $langKey,
-                isSearchFieldFocused: $isSearchFieldFocused
+                isSearchFieldFocused: $isSearchFieldFocused,
+                encoding: fileReader.encoding
             )
 
             Divider()
@@ -241,7 +242,7 @@ struct MainView: View {
         .onChange(of: filterCondition) { _, newCondition in
             UserDefaults.standard.set(newCondition.isRegex, forKey: MainView.regexDefaultsKey)
             UserDefaults.standard.set(newCondition.isCaseSensitive, forKey: MainView.caseSensitiveDefaultsKey)
-            searchEngine.search(condition: newCondition, lineStream: fileReader.forEachLineBytes) {
+            searchEngine.search(condition: newCondition, encoding: fileReader.encoding, lineStream: fileReader.forEachLineBytes) {
                 // Focus the first match so it gets the deeper highlight right
                 // after typing, instead of only once the user hits Enter.
                 currentSearchIndex = 0
@@ -375,6 +376,7 @@ struct ToolbarView: View {
     let onNextResult: () -> Void
     @Binding var langKey: Int
     @Binding var isSearchFieldFocused: Bool
+    let encoding: String.Encoding
 
     var body: some View {
         HStack {
@@ -478,6 +480,16 @@ struct ToolbarView: View {
                         .font(.caption)
                 }
             }
+
+            Divider().frame(height: 20)
+
+            // Detected text encoding (e.g. "UTF-8", "GB18030"). Surfaced so
+            // the user can confirm auto-detection on non-UTF-8 files; the
+            // tooltip explains the value when the field is too small to read.
+            Text(TextEncodingDetector.displayName(for: encoding))
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .help(i18n.str("encodingHint"))
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)

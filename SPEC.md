@@ -90,7 +90,7 @@
 ### 2.4 数据处理
 
 - **行索引**：后台按 4MB 分块、用 `memchr` 扫描换行符建立行偏移表（O(n)），打开后按需 `seek` 读单行；文件读取加锁串行化，保证后台搜索与 UI 渲染并发安全
-- **编码**：优先 UTF-8，失败回退 ISO Latin-1（GBK 等待实现）
+- **编码**：打开时读取 64KB 头采样做严格解码，先按 BOM / UTF-8 识别；否则同时尝试 GB18030（GBK 超集）与 Big5 并按解码质量评分（CJK Unified Ideographs +1，非 ASCII 非 CJK × -3 罚分，GB18030 解 Big5 字节会落到日文假名 / 杂项符号而被罚低），高分者胜出，平局默认 GB18030；结果存于 `FileReader.encoding`，`readLine` 与 `SearchEngine` 共用，工具栏右端实时显示当前编码名
 - **搜索管道**：后台线程顺序流式扫描文件（`forEachLineBytes`），先用字节级预筛（`ByteNeedle`：`memmem` / ASCII 折叠）筛选，命中行才解码为 `String` 并算精确高亮；输入带 250ms debounce
 - **标记管道**：标记**不做全文件预扫描**；`SearchEngine.addMark` 仅记录标记，渲染时由 `markRanges(in:)` 对每个可见行的内容即时计算命中范围（开销与可见行数成正比，与文件大小无关），避免大文件下添加标记触发整文件扫描造成 CPU 飙升
 - **虚拟滚动**：`VirtualLogView` 基于 `NSTableView` 行回收渲染，仅创建可见区域 ± 缓冲的行视图，内存与视图数量与文件大小无关
@@ -128,6 +128,7 @@ Logpad/Logpad/
 ├── MainView.swift           # 主界面、工具栏、分屏、GoToLine / Mark 弹窗
 ├── SelectableLogView.swift  # 单行日志（NSTextView + 高亮）
 ├── FileReader.swift         # 大文件分块索引与按行读取
+├── EncodingDetector.swift   # 打开时按字节采样识别文件编码
 ├── SearchEngine.swift       # 搜索、正则匹配、标记扫描
 ├── VirtualScrollManager.swift  # 虚拟滚动（预留，未接入主列表）
 ├── Models.swift             # LogLine、FilterCondition、HighlightMark 等
@@ -159,7 +160,7 @@ Logpad/Logpad/
 | M2 | 大文件行索引 + 按行浏览 | 已完成 |
 | M3 | 搜索 / 高亮 / 分屏 / 联动跳转 | 已完成 |
 | M4 | 跳转行号、文本标记、搜索导航、双语界面 | 已完成 |
-| M5 | 虚拟滚动接入（已完成）、文件变更检测（已完成）、GBK 编码 | 部分完成 |
+| M5 | 虚拟滚动接入（已完成）、文件变更检测（已完成）、GBK 编码（已完成） | 已完成 |
 
 ---
 
@@ -275,5 +276,5 @@ struct HighlightMark {
 
 - [x] 真正虚拟滚动（`NSTableView` 行回收，不创建全部行视图）
 - [x] 外部文件修改检测与提示（写入/删除/替换，重新加载并保持滚动位置）
-- [ ] GBK 等编码自动检测
+- [x] GBK 等编码自动检测
 - [ ] 超大文件索引进度条
