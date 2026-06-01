@@ -195,6 +195,7 @@ struct MainView: View {
                     )
                     FilterResultView(
                         results: searchEngine.lineResults,
+                        searchRanges: { searchEngine.searchRanges(forLineID: $0) },
                         onResultSelected: { displayIndex in
                             selectResultLine(displayIndex)
                         }
@@ -213,6 +214,7 @@ struct MainView: View {
                     )
                     FilterResultView(
                         results: searchEngine.lineResults,
+                        searchRanges: { searchEngine.searchRanges(forLineID: $0) },
                         onResultSelected: { displayIndex in
                             selectResultLine(displayIndex)
                         }
@@ -495,7 +497,26 @@ struct NavArrowButton: NSViewRepresentable {
 
 struct FilterResultView: View {
     let results: [FilterResult]
+    /// Match ranges for a given 1-based line id, used to highlight the matched
+    /// fragments in the preview just like the main view.
+    let searchRanges: (Int) -> [NSRange]
     let onResultSelected: (Int) -> Void
+
+    /// Builds the line preview with each match fragment given a yellow
+    /// background, mirroring the main view's highlight.
+    private func highlighted(_ content: String, lineID: Int) -> AttributedString {
+        var attributed = AttributedString(content)
+        for range in searchRanges(lineID) {
+            guard range.location >= 0, range.location + range.length <= (content as NSString).length,
+                  let swiftRange = Range(range, in: content) else { continue }
+            let lowerOffset = content.distance(from: content.startIndex, to: swiftRange.lowerBound)
+            let upperOffset = content.distance(from: content.startIndex, to: swiftRange.upperBound)
+            let lower = attributed.index(attributed.startIndex, offsetByCharacters: lowerOffset)
+            let upper = attributed.index(attributed.startIndex, offsetByCharacters: upperOffset)
+            attributed[lower..<upper].backgroundColor = Color(nsColor: .systemYellow)
+        }
+        return attributed
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -529,7 +550,7 @@ struct FilterResultView: View {
                                         .frame(width: 50, alignment: .trailing)
                                         .padding(.trailing, 6)
 
-                                    Text(result.line.content)
+                                    Text(highlighted(result.line.content, lineID: result.line.id))
                                         .font(.system(.body, design: .monospaced))
                                         .lineLimit(1)
                                         .textSelection(.enabled)
