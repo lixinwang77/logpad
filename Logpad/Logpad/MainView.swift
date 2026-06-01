@@ -235,7 +235,14 @@ struct MainView: View {
         .onChange(of: filterCondition) { _, newCondition in
             UserDefaults.standard.set(newCondition.isRegex, forKey: MainView.regexDefaultsKey)
             UserDefaults.standard.set(newCondition.isCaseSensitive, forKey: MainView.caseSensitiveDefaultsKey)
-            searchEngine.search(condition: newCondition, lineStream: fileReader.forEachLineBytes)
+            searchEngine.search(condition: newCondition, lineStream: fileReader.forEachLineBytes) {
+                // Focus the first match so it gets the deeper highlight right
+                // after typing, instead of only once the user hits Enter.
+                currentSearchIndex = 0
+                if !searchEngine.results.isEmpty {
+                    searchEngine.focusMatch(at: 0)
+                }
+            }
         }
         .sheet(isPresented: $showMarkMenu) {
             MarkMenuView(text: pendingMarkText) { color in
