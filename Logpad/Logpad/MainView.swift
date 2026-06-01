@@ -42,6 +42,12 @@ struct MainView: View {
             }
         }
         .id("lang-\(langKey)")
+        .onAppear {
+            MarkCoordinator.shared.activeMarkColors = { searchEngine.activeMarkColors }
+            MarkCoordinator.shared.removeMarkColor = { searchEngine.removeMarks(color: $0) }
+            MarkCoordinator.shared.removeMarkText = { searchEngine.removeMarks(text: $0) }
+            MarkCoordinator.shared.clearAllMarks = { searchEngine.clearMarks() }
+        }
         .windowTitle(fileReader.fileName.isEmpty ? "Logpad" : fileReader.fileName)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .fileImporter(

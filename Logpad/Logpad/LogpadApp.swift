@@ -46,6 +46,11 @@ struct LogpadApp: App {
                     MarkCoordinator.shared.requestMarkText()
                 }
                 .keyboardShortcut("m", modifiers: .command)
+
+                Button(i18n.str("removeMark")) {
+                    MarkCoordinator.shared.requestRemoveMarkText()
+                }
+                .keyboardShortcut("m", modifiers: [.command, .shift])
             }
         }
     }

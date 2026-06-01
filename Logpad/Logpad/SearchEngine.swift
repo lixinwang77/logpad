@@ -232,6 +232,29 @@ final class SearchEngine: ObservableObject {
         revision &+= 1
     }
 
+    /// Colors currently in use by at least one mark, in the canonical color
+    /// order, for building the "remove mark" menu.
+    var activeMarkColors: [HighlightColor] {
+        HighlightColor.allCases.filter { color in marks.contains { $0.color == color } }
+    }
+
+    /// Removes every mark of the given color.
+    func removeMarks(color: HighlightColor) {
+        let remaining = marks.filter { $0.color != color }
+        guard remaining.count != marks.count else { return }
+        marks = remaining
+        revision &+= 1
+    }
+
+    /// Removes marks whose text matches `text` (case-insensitive, mirroring how
+    /// marks are matched), used by the "unmark selection" shortcut.
+    func removeMarks(text: String) {
+        let remaining = marks.filter { $0.text.caseInsensitiveCompare(text) != .orderedSame }
+        guard remaining.count != marks.count else { return }
+        marks = remaining
+        revision &+= 1
+    }
+
     /// Computes the mark highlight ranges for a single line's content. Called
     /// per visible row during rendering, so the cost scales with the viewport
     /// (a few dozen rows) rather than the whole file.

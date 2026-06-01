@@ -70,12 +70,27 @@ class MarkCoordinator {
     static let shared = MarkCoordinator()
     var selectedText: String?
 
+    /// Bridges the recycled log text views to the mark state in `SearchEngine`
+    /// (wired by `MainView`), so the right-click menu can list active colors
+    /// and remove marks without holding a reference to the engine.
+    var activeMarkColors: () -> [HighlightColor] = { [] }
+    var removeMarkColor: (HighlightColor) -> Void = { _ in }
+    var removeMarkText: (String) -> Void = { _ in }
+    var clearAllMarks: () -> Void = {}
+
     func requestMarkText() {
         if let text = selectedText, !text.isEmpty {
             NotificationCenter.default.post(
                 name: NSNotification.Name("ShowMarkMenu"),
                 object: text
             )
+        }
+    }
+
+    /// Cmd+Shift+M: remove the mark for the currently selected text.
+    func requestRemoveMarkText() {
+        if let text = selectedText, !text.isEmpty {
+            removeMarkText(text)
         }
     }
 }
