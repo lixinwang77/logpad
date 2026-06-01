@@ -49,23 +49,73 @@ class NonEditableTextView: NSTextView {
 
     override func menu(for event: NSEvent) -> NSMenu? {
         let range = selectedRange()
-        guard range.length > 0 else { return nil }
+        let hasSelection = range.length > 0
+        let activeColors = MarkCoordinator.shared.activeMarkColors()
 
-        // Capture the selection now: opening the context menu can make this view
-        // resign first responder before the menu action runs, so reading it live
-        // there could come back empty.
-        MarkCoordinator.shared.selectedText = (string as NSString).substring(with: range)
+        guard hasSelection || !activeColors.isEmpty else { return nil }
 
         let menu = NSMenu()
-        let markItem = NSMenuItem(title: "Mark", action: #selector(markSelectedText(_:)), keyEquivalent: "")
-        markItem.target = self
-        menu.addItem(markItem)
+
+        if hasSelection {
+            // Capture the selection now: opening the context menu can make this
+            // view resign first responder before the menu action runs, so
+            // reading it live there could come back empty.
+            MarkCoordinator.shared.selectedText = (string as NSString).substring(with: range)
+            let markItem = NSMenuItem(title: i18n.str("Mark"),
+                                      action: #selector(markSelectedText(_:)), keyEquivalent: "")
+            markItem.target = self
+            menu.addItem(markItem)
+        }
+
+        if !activeColors.isEmpty {
+            if !menu.items.isEmpty { menu.addItem(.separator()) }
+
+            let removeItem = NSMenuItem(title: i18n.str("removeMark"), action: nil, keyEquivalent: "")
+            let submenu = NSMenu()
+            for color in activeColors {
+                let item = NSMenuItem(title: i18n.str(color.localizedNameKey),
+                                      action: #selector(removeMarkColorAction(_:)), keyEquivalent: "")
+                item.target = self
+                item.representedObject = color
+                item.image = NonEditableTextView.swatch(for: color)
+                submenu.addItem(item)
+            }
+            submenu.addItem(.separator())
+            let clearAll = NSMenuItem(title: i18n.str("clearAllMarks"),
+                                      action: #selector(clearAllMarksAction(_:)), keyEquivalent: "")
+            clearAll.target = self
+            submenu.addItem(clearAll)
+
+            removeItem.submenu = submenu
+            menu.addItem(removeItem)
+        }
+
         return menu
+    }
+
+    /// Small rounded color chip shown next to each color in the remove menu.
+    private static func swatch(for color: HighlightColor) -> NSImage {
+        let size = NSSize(width: 12, height: 12)
+        let image = NSImage(size: size)
+        image.lockFocus()
+        color.nsColor.withAlphaComponent(0.8).setFill()
+        NSBezierPath(roundedRect: NSRect(origin: .zero, size: size), xRadius: 2, yRadius: 2).fill()
+        image.unlockFocus()
+        return image
     }
 
     @objc func markSelectedText(_ sender: Any?) {
         if let selectedText = MarkCoordinator.shared.selectedText, !selectedText.isEmpty {
             onMarkText?(selectedText)
         }
+    }
+
+    @objc private func removeMarkColorAction(_ sender: NSMenuItem) {
+        guard let color = sender.representedObject as? HighlightColor else { return }
+        MarkCoordinator.shared.removeMarkColor(color)
+    }
+
+    @objc private func clearAllMarksAction(_ sender: Any?) {
+        MarkCoordinator.shared.clearAllMarks()
     }
 }

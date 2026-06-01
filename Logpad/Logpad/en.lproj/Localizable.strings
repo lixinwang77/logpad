@@ -20,6 +20,16 @@
 "prevMatchHint" = "Previous match (⇧↵)";
 "nextMatchHint" = "Next match (↵)";
 
+/* Mark */
+"Mark" = "Mark";
+"removeMark" = "Remove Mark";
+"clearAllMarks" = "Clear All Marks";
+"colorRed" = "Red";
+"colorOrange" = "Orange";
+"colorGreen" = "Green";
+"colorBlue" = "Blue";
+"colorPurple" = "Purple";
+
 /* External change */
 "fileChangedMessage" = "This file has been modified outside Logpad.";
 "Reload" = "Reload";

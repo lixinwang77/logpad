@@ -56,6 +56,9 @@ enum HighlightColor: String, CaseIterable {
         case .purple: return .systemPurple
         }
     }
+
+    /// Localization key for the human-readable color name (e.g. `colorRed`).
+    var localizedNameKey: String { "color\(rawValue)" }
 }
 
 struct HighlightMark: Equatable {

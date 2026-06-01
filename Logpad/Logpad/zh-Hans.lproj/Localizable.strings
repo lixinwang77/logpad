@@ -20,6 +20,16 @@
 "prevMatchHint" = "上一条匹配 (⇧↵)";
 "nextMatchHint" = "下一条匹配 (↵)";
 
+/* Mark */
+"Mark" = "标记";
+"removeMark" = "取消标记";
+"clearAllMarks" = "清除全部标记";
+"colorRed" = "红色";
+"colorOrange" = "橙色";
+"colorGreen" = "绿色";
+"colorBlue" = "蓝色";
+"colorPurple" = "紫色";
+
 /* External change */
 "fileChangedMessage" = "该文件已在 Logpad 外部被修改。";
 "Reload" = "重新加载";
