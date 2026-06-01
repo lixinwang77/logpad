@@ -191,7 +191,7 @@ struct MainView: View {
                     )
                 }
             } else {
-                VStack(spacing: 0) {
+                VSplitView {
                     LogContentView(
                         fileReader: fileReader,
                         searchEngine: searchEngine,
@@ -201,7 +201,6 @@ struct MainView: View {
                             showMarkMenu = true
                         }
                     )
-                    Divider()
                     FilterResultView(
                         results: searchEngine.results,
                         onResultSelected: { index in
