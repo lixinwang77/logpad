@@ -7,7 +7,15 @@ struct MainView: View {
     @ObservedObject private var languageManager = LanguageManager.shared
 
     @State private var splitMode: SplitMode = .none
-    @State private var filterCondition = FilterCondition()
+    @State private var filterCondition = FilterCondition(
+        isRegex: UserDefaults.standard.bool(forKey: MainView.regexDefaultsKey),
+        isCaseSensitive: UserDefaults.standard.bool(forKey: MainView.caseSensitiveDefaultsKey)
+    )
+
+    /// UserDefaults keys for persisting the search option toggles so they
+    /// survive app relaunches (the keyword itself stays transient).
+    private static let regexDefaultsKey = "filterIsRegex"
+    private static let caseSensitiveDefaultsKey = "filterIsCaseSensitive"
     @State private var selectedLine: Int?
     @State private var targetLine: Int?
     @State private var showFilePicker = false
@@ -223,6 +231,8 @@ struct MainView: View {
             }
         }
         .onChange(of: filterCondition) { _, newCondition in
+            UserDefaults.standard.set(newCondition.isRegex, forKey: MainView.regexDefaultsKey)
+            UserDefaults.standard.set(newCondition.isCaseSensitive, forKey: MainView.caseSensitiveDefaultsKey)
             searchEngine.search(condition: newCondition, lineStream: fileReader.forEachLineBytes)
         }
         .sheet(isPresented: $showMarkMenu) {
