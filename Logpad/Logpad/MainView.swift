@@ -134,6 +134,18 @@ struct MainView: View {
         searchEngine.addMark(HighlightMark(text: text, color: color))
     }
 
+    /// Clicking a row in the (deduplicated) result list focuses that line's
+    /// first match occurrence, so subsequent Enter/arrow navigation continues
+    /// from there through any further matches on the line.
+    private func selectResultLine(_ displayIndex: Int) {
+        guard displayIndex >= 0, displayIndex < searchEngine.lineFirstResultIndex.count else { return }
+        let resultIndex = searchEngine.lineFirstResultIndex[displayIndex]
+        guard resultIndex >= 0, resultIndex < searchEngine.results.count else { return }
+        currentSearchIndex = resultIndex
+        targetLine = searchEngine.results[resultIndex].line.id
+        searchEngine.focusMatch(at: resultIndex)
+    }
+
     @ViewBuilder
     private var mainContent: some View {
         VStack(spacing: 0) {
@@ -182,11 +194,9 @@ struct MainView: View {
                         }
                     )
                     FilterResultView(
-                        results: searchEngine.results,
-                        onResultSelected: { index in
-                            currentSearchIndex = index
-                            targetLine = searchEngine.results[index].line.id
-                            searchEngine.focusMatch(at: index)
+                        results: searchEngine.lineResults,
+                        onResultSelected: { displayIndex in
+                            selectResultLine(displayIndex)
                         }
                     )
                 }
@@ -202,11 +212,9 @@ struct MainView: View {
                         }
                     )
                     FilterResultView(
-                        results: searchEngine.results,
-                        onResultSelected: { index in
-                            currentSearchIndex = index
-                            targetLine = searchEngine.results[index].line.id
-                            searchEngine.focusMatch(at: index)
+                        results: searchEngine.lineResults,
+                        onResultSelected: { displayIndex in
+                            selectResultLine(displayIndex)
                         }
                     )
                 }

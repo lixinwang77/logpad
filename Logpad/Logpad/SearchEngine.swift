@@ -54,8 +54,17 @@ struct ByteNeedle {
 }
 
 final class SearchEngine: ObservableObject {
+    /// Every match occurrence, in file order. Used for `Enter` / arrow
+    /// navigation so each occurrence (even multiple on one line) is reachable.
     @Published var results: [FilterResult] = []
     @Published var isSearching: Bool = false
+
+    /// One entry per matching line (deduplicated), for the filter result list
+    /// so a line with several matches appears only once. `lineFirstResultIndex`
+    /// maps each display row to the index of that line's first occurrence in
+    /// `results`, so clicking a row focuses the right match for navigation.
+    @Published private(set) var lineResults: [FilterResult] = []
+    private(set) var lineFirstResultIndex: [Int] = []
 
     /// Active text marks. Mark highlights are computed lazily per visible row
     /// (see `markRanges(in:)`) rather than precomputed across the whole file,
@@ -106,6 +115,8 @@ final class SearchEngine: ObservableObject {
         let keyword = condition.keyword
         guard !keyword.isEmpty else {
             results = []
+            lineResults = []
+            lineFirstResultIndex = []
             resultLineIndex = [:]
             currentMatchLineID = 0
             currentMatchRange = nil
@@ -135,6 +146,8 @@ final class SearchEngine: ObservableObject {
                 await MainActor.run { [weak self] in
                     guard let self else { return }
                     self.results = []
+                    self.lineResults = []
+                    self.lineFirstResultIndex = []
                     self.resultLineIndex = [:]
                     self.currentMatchLineID = 0
                     self.currentMatchRange = nil
@@ -146,6 +159,8 @@ final class SearchEngine: ObservableObject {
             }
 
             var found: [FilterResult] = []
+            var lineFound: [FilterResult] = []
+            var lineFirstIndex: [Int] = []
             var index: [Int: [NSRange]] = [:]
             let options: String.CompareOptions = caseSensitive ? [] : [.caseInsensitive]
             let needle = ByteNeedle(keyword, caseInsensitive: !caseSensitive)
@@ -158,12 +173,17 @@ final class SearchEngine: ObservableObject {
                     let full = NSRange(line.startIndex..., in: line)
                     let id = lineNumber + 1
                     var ranges: [NSRange] = []
+                    let firstResultIdx = found.count
                     for match in rx.matches(in: line, range: full) where match.range.length > 0 {
                         guard let r = Range(match.range, in: line) else { continue }
                         found.append(FilterResult(line: LogLine(id: id, content: line), highlightRange: r))
                         ranges.append(match.range)
                     }
-                    if !ranges.isEmpty { index[id] = ranges }
+                    if !ranges.isEmpty {
+                        index[id] = ranges
+                        lineFound.append(found[firstResultIdx])
+                        lineFirstIndex.append(firstResultIdx)
+                    }
                     return
                 }
 
@@ -173,13 +193,18 @@ final class SearchEngine: ObservableObject {
                 let line = String(decoding: bytes, as: UTF8.self)
                 let id = lineNumber + 1
                 var ranges: [NSRange] = []
+                let firstResultIdx = found.count
                 var searchStart = line.startIndex
                 while let r = line.range(of: keyword, options: options, range: searchStart..<line.endIndex) {
                     found.append(FilterResult(line: LogLine(id: id, content: line), highlightRange: r))
                     ranges.append(NSRange(r, in: line))
                     searchStart = r.upperBound
                 }
-                if !ranges.isEmpty { index[id] = ranges }
+                if !ranges.isEmpty {
+                    index[id] = ranges
+                    lineFound.append(found[firstResultIdx])
+                    lineFirstIndex.append(firstResultIdx)
+                }
             }
 
             if Task.isCancelled { return }
@@ -187,6 +212,8 @@ final class SearchEngine: ObservableObject {
             await MainActor.run { [weak self] in
                 guard let self else { return }
                 self.results = found
+                self.lineResults = lineFound
+                self.lineFirstResultIndex = lineFirstIndex
                 self.resultLineIndex = index
                 self.currentMatchLineID = 0
                 self.currentMatchRange = nil
