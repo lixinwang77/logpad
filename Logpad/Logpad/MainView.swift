@@ -203,6 +203,7 @@ struct MainView: View {
                     )
                     FilterResultView(
                         results: searchEngine.lineResults,
+                        matchCount: searchEngine.results.count,
                         searchRanges: { searchEngine.searchRanges(forLineID: $0) },
                         onResultSelected: { displayIndex in
                             selectResultLine(displayIndex)
@@ -222,6 +223,7 @@ struct MainView: View {
                     )
                     FilterResultView(
                         results: searchEngine.lineResults,
+                        matchCount: searchEngine.results.count,
                         searchRanges: { searchEngine.searchRanges(forLineID: $0) },
                         onResultSelected: { displayIndex in
                             selectResultLine(displayIndex)
@@ -507,6 +509,10 @@ struct NavArrowButton: NSViewRepresentable {
 
 struct FilterResultView: View {
     let results: [FilterResult]
+    /// Total number of match occurrences (counts every hit, including several
+    /// on the same line), shown in the header. The list itself is deduplicated
+    /// to one row per line.
+    let matchCount: Int
     /// Match ranges for a given 1-based line id, used to highlight the matched
     /// fragments in the preview just like the main view.
     let searchRanges: (Int) -> [NSRange]
@@ -531,7 +537,7 @@ struct FilterResultView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text("\(i18n.str("Results")): \(results.count)")
+                Text("\(i18n.str("Results")): \(matchCount)")
                     .font(.headline)
                 Spacer()
             }
