@@ -119,6 +119,16 @@ struct MainView: View {
                 targetLine = first.line.id
                 searchEngine.focusMatch(at: 0)
             }
+            autoOpenSplitIfNeeded()
+        }
+    }
+
+    /// A search with a non-empty keyword implies the user wants to see the
+    /// results panel, so when the layout is still single-window, switch to
+    /// up/down split by default. The user's manual split choice is preserved.
+    private func autoOpenSplitIfNeeded() {
+        if splitMode == .none, !filterCondition.keyword.isEmpty {
+            splitMode = .horizontal
         }
     }
 
@@ -249,6 +259,7 @@ struct MainView: View {
                 if !searchEngine.results.isEmpty {
                     searchEngine.focusMatch(at: 0)
                 }
+                autoOpenSplitIfNeeded()
             }
         }
         .sheet(isPresented: $showMarkMenu) {
