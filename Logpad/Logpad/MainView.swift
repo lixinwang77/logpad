@@ -48,7 +48,29 @@ struct MainView: View {
             MarkCoordinator.shared.removeMarkText = { searchEngine.removeMarks(text: $0) }
             MarkCoordinator.shared.clearAllMarks = { searchEngine.clearMarks() }
         }
-        .windowTitle(fileReader.fileName.isEmpty ? "Logpad" : fileReader.fileName)
+        .onReceive(NotificationCenter.default.publisher(for: NSWorkspace.didActivateApplicationNotification)) { notification in
+            if let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
+               app.bundleIdentifier == Bundle.main.bundleIdentifier {
+                let title = fileReader.fileName.isEmpty ? "Logpad" : fileReader.fileName
+                NSApp.windows.first?.title = title
+            }
+        }
+        .onReceive(fileReader.$fileName) { newFileName in
+            let title = newFileName.isEmpty ? "Logpad" : newFileName
+            NSApp.windows.first?.title = title
+        }
+        .onChange(of: splitMode) { _, newMode in
+            // Any split mode change may reset the window title to the app default.
+            // Re-apply the correct filename.
+            DispatchQueue.main.async {
+                let title = self.fileReader.fileName.isEmpty ? "Logpad" : self.fileReader.fileName
+                NSApp.windows.first?.title = title
+            }
+        }
+        .onChange(of: filterCondition) { _, _ in
+            // No-op: filter changes don't affect window title directly.
+            // The title is preserved via autoOpenSplitIfNeeded if needed.
+        }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .fileImporter(
             isPresented: $showFilePicker,
@@ -253,13 +275,15 @@ struct MainView: View {
             UserDefaults.standard.set(newCondition.isRegex, forKey: MainView.regexDefaultsKey)
             UserDefaults.standard.set(newCondition.isCaseSensitive, forKey: MainView.caseSensitiveDefaultsKey)
             searchEngine.search(condition: newCondition, encoding: fileReader.encoding, lineStream: fileReader.forEachLineBytes) {
-                // Focus the first match so it gets the deeper highlight right
-                // after typing, instead of only once the user hits Enter.
+                let title = fileReader.fileName.isEmpty ? "Logpad" : fileReader.fileName
+                print("[DEBUG MainView] INNER search completion, setting title to '\(title)'")
+                NSApp.windows.first?.title = title
                 currentSearchIndex = 0
                 if !searchEngine.results.isEmpty {
                     searchEngine.focusMatch(at: 0)
                 }
                 autoOpenSplitIfNeeded()
+                print("[DEBUG MainView] INNER search completion done, title now '\(NSApp.windows.first?.title ?? "nil")'")
             }
         }
         .sheet(isPresented: $showMarkMenu) {
