@@ -605,7 +605,7 @@ struct FilterResultView: View {
                     .font(.headline)
                     .foregroundColor(.primary)
                     .lineLimit(1)
-                Text("\(i18n.str("Results")): \(matchCount)")
+                Text("\(i18n.str("FilterResults")): \(matchCount)")
                     .font(.headline)
                 Spacer()
             }

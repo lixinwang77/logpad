@@ -15,7 +15,7 @@
 /* Search */
 "Search..." = "Search (⌘F)";
 "Regex" = "Regex";
-"Results" = "Results";
+"FilterResults" = "Filter Results";
 "No results" = "No results";
 "prevMatchHint" = "Previous match (⇧↵)";
 "nextMatchHint" = "Next match (↵)";

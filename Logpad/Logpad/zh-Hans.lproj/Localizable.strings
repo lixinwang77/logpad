@@ -15,7 +15,7 @@
 /* Search */
 "Search..." = "搜索 (⌘F)";
 "Regex" = "正则";
-"Results" = "结果";
+"FilterResults" = "过滤结果";
 "No results" = "无结果";
 "prevMatchHint" = "上一条匹配 (⇧↵)";
 "nextMatchHint" = "下一条匹配 (↵)";
