@@ -20,6 +20,7 @@ final class FileReader: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var error: String?
     @Published private(set) var fileName: String = ""
+    var filePathString: String { filePath?.path ?? "" }
     /// Detected text encoding of the open file (UTF-8, GB18030, Big5, …).
     /// Determined once in `open()` from a 64 KB head sample and reused by both
     /// the line reader and the search engine.

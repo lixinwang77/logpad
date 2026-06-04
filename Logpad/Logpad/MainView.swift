@@ -246,7 +246,8 @@ struct MainView: View {
                         searchRanges: { searchEngine.searchRanges(forLineID: $0) },
                         onResultSelected: { displayIndex in
                             selectResultLine(displayIndex)
-                        }
+                        },
+                        fileName: fileReader.filePathString
                     )
                 }
             } else {
@@ -266,7 +267,8 @@ struct MainView: View {
                         searchRanges: { searchEngine.searchRanges(forLineID: $0) },
                         onResultSelected: { displayIndex in
                             selectResultLine(displayIndex)
-                        }
+                        },
+                        fileName: fileReader.filePathString
                     )
                 }
             }
@@ -577,6 +579,8 @@ struct FilterResultView: View {
     /// fragments in the preview just like the main view.
     let searchRanges: (Int) -> [NSRange]
     let onResultSelected: (Int) -> Void
+    /// The file path of the currently opened log file.
+    let fileName: String
 
     /// Builds the line preview with each match fragment given a yellow
     /// background, mirroring the main view's highlight.
@@ -597,6 +601,10 @@ struct FilterResultView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
+                Text(fileName)
+                    .font(.headline)
+                    .foregroundColor(.primary)
+                    .lineLimit(1)
                 Text("\(i18n.str("Results")): \(matchCount)")
                     .font(.headline)
                 Spacer()
