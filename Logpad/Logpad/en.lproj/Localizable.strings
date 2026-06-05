@@ -1,5 +1,7 @@
 /* General */
 "openFile" = "Open File";
+"New Window" = "New Window";
+"New Tab" = "New Tab";
 "Error" = "Error";
 "Loading..." = "Loading...";
 "Empty file" = "Empty file";

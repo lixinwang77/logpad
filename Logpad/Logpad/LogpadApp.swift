@@ -18,6 +18,18 @@ struct LogpadApp: App {
             }
 
             CommandGroup(replacing: .newItem) {
+                Button(i18n.str("New Window")) {
+                    WindowManager.shared.newWindow()
+                }
+                .keyboardShortcut("n", modifiers: .command)
+
+                Button(i18n.str("New Tab")) {
+                    WindowManager.shared.newTab()
+                }
+                .keyboardShortcut("t", modifiers: .command)
+
+                Divider()
+
                 Button("Open...") {
                     NotificationCenter.default.post(
                         name: NSNotification.Name("OpenDocument"),

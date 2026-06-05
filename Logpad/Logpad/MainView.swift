@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 struct MainView: View {
     @StateObject private var fileReader = FileReader()
     @StateObject private var searchEngine = SearchEngine()
+    @State private var windowHolder = WindowHolder()
     @ObservedObject private var languageManager = LanguageManager.shared
 
     @State private var splitMode: SplitMode = .none
@@ -42,29 +43,37 @@ struct MainView: View {
             }
         }
         .id("lang-\(langKey)")
+        .background(WindowAccessor { window in
+            if windowHolder.window !== window {
+                windowHolder.window = window
+                applyWindowTitle()
+            }
+        })
         .onAppear {
-            MarkCoordinator.shared.activeMarkColors = { searchEngine.activeMarkColors }
-            MarkCoordinator.shared.removeMarkColor = { searchEngine.removeMarks(color: $0) }
-            MarkCoordinator.shared.removeMarkText = { searchEngine.removeMarks(text: $0) }
-            MarkCoordinator.shared.clearAllMarks = { searchEngine.clearMarks() }
+            wireMarkCoordinator()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { note in
+            // Re-point the shared mark coordinator at this window's engine
+            // whenever it becomes key, so Cmd+M / Cmd+Shift+M and the
+            // right-click mark menu always act on the focused window.
+            guard let win = note.object as? NSWindow, win === windowHolder.window else { return }
+            wireMarkCoordinator()
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWorkspace.didActivateApplicationNotification)) { notification in
             if let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
                app.bundleIdentifier == Bundle.main.bundleIdentifier {
-                let title = fileReader.fileName.isEmpty ? "Logpad" : fileReader.fileName
-                NSApp.windows.first?.title = title
+                applyWindowTitle()
             }
         }
         .onReceive(fileReader.$fileName) { newFileName in
             let title = newFileName.isEmpty ? "Logpad" : newFileName
-            NSApp.windows.first?.title = title
+            windowHolder.window?.title = title
         }
         .onChange(of: splitMode) { _, newMode in
             // Any split mode change may reset the window title to the app default.
             // Re-apply the correct filename.
             DispatchQueue.main.async {
-                let title = self.fileReader.fileName.isEmpty ? "Logpad" : self.fileReader.fileName
-                NSApp.windows.first?.title = title
+                applyWindowTitle()
             }
         }
         .onChange(of: filterCondition) { _, _ in
@@ -100,13 +109,15 @@ struct MainView: View {
             return true
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenDocument"))) { _ in
+            guard windowHolder.isKey else { return }
             showFilePicker = true
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("FocusSearchField"))) { _ in
+            guard windowHolder.isKey else { return }
             isSearchFieldFocused = true
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("GoToLine"))) { _ in
-            guard fileReader.totalLines > 0, !fileReader.isLoading else { return }
+            guard windowHolder.isKey, fileReader.totalLines > 0, !fileReader.isLoading else { return }
             goToLineInput = ""
             showGoToLine = true
         }
@@ -124,14 +135,32 @@ struct MainView: View {
             )
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SearchPrevious"))) { _ in
+            guard windowHolder.isKey else { return }
             jumpToPreviousResult()
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ShowMarkMenu"))) { notification in
+            guard windowHolder.isKey else { return }
             if let text = notification.object as? String, !text.isEmpty {
                 pendingMarkText = text
                 showMarkMenu = true
             }
         }
+    }
+
+    /// Sets this window's title to the current file name (or the app name when
+    /// no file is open). Scoped to this window so multiple windows/tabs each
+    /// show their own file.
+    private func applyWindowTitle() {
+        let title = fileReader.fileName.isEmpty ? "Logpad" : fileReader.fileName
+        windowHolder.window?.title = title
+    }
+
+    /// Points the shared `MarkCoordinator` callbacks at this window's engine.
+    private func wireMarkCoordinator() {
+        MarkCoordinator.shared.activeMarkColors = { searchEngine.activeMarkColors }
+        MarkCoordinator.shared.removeMarkColor = { searchEngine.removeMarks(color: $0) }
+        MarkCoordinator.shared.removeMarkText = { searchEngine.removeMarks(text: $0) }
+        MarkCoordinator.shared.clearAllMarks = { searchEngine.clearMarks() }
     }
 
     private func performSearch() {
@@ -277,15 +306,12 @@ struct MainView: View {
             UserDefaults.standard.set(newCondition.isRegex, forKey: MainView.regexDefaultsKey)
             UserDefaults.standard.set(newCondition.isCaseSensitive, forKey: MainView.caseSensitiveDefaultsKey)
             searchEngine.search(condition: newCondition, encoding: fileReader.encoding, lineStream: fileReader.forEachLineBytes) {
-                let title = fileReader.fileName.isEmpty ? "Logpad" : fileReader.fileName
-                print("[DEBUG MainView] INNER search completion, setting title to '\(title)'")
-                NSApp.windows.first?.title = title
+                applyWindowTitle()
                 currentSearchIndex = 0
                 if !searchEngine.results.isEmpty {
                     searchEngine.focusMatch(at: 0)
                 }
                 autoOpenSplitIfNeeded()
-                print("[DEBUG MainView] INNER search completion done, title now '\(NSApp.windows.first?.title ?? "nil")'")
             }
         }
         .sheet(isPresented: $showMarkMenu) {

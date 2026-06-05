@@ -28,8 +28,15 @@ extension Notification.Name {
 class ShiftEnterMonitor {
     static let shared = ShiftEnterMonitor()
     private var monitor: Any?
+    /// Each window's ContentView calls start/stop; the single shared monitor is
+    /// installed once and only removed when the last window goes away. This
+    /// avoids stacking duplicate monitors (which would post SearchPrevious
+    /// multiple times per keystroke) across multiple windows/tabs.
+    private var refCount = 0
 
     func start() {
+        refCount += 1
+        guard monitor == nil else { return }
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             if event.keyCode == 36 && event.modifierFlags.contains(.shift) {
                 NotificationCenter.default.post(
@@ -43,10 +50,10 @@ class ShiftEnterMonitor {
     }
 
     func stop() {
-        if let monitor = monitor {
-            NSEvent.removeMonitor(monitor)
-            self.monitor = nil
-        }
+        refCount = max(0, refCount - 1)
+        guard refCount == 0, let monitor = monitor else { return }
+        NSEvent.removeMonitor(monitor)
+        self.monitor = nil
     }
 }
 

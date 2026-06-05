@@ -29,11 +29,14 @@
 | 双语界面 | 中英文文案，工具栏可手动切换语言 | P1 | 已实现 |
 | App 图标 | macOS Dock 图标与应用窗口图标 | P1 | 已实现 |
 | 外部修改检测 | 文件被外部写入/删除/替换时提示，可一键重新加载 | P1 | 已实现 |
+| 多窗口 / 多标签页 | `Cmd+N` 打开新 app 窗口，`Cmd+T` 在当前窗口新建标签页；各窗口/标签页拥有独立文件与搜索状态 | P1 | 已实现 |
 
 ### 2.2 快捷键与菜单
 
 | 快捷键 | 功能 |
 |--------|------|
+| `Cmd+N` | 打开新的独立 app 窗口 |
+| `Cmd+T` | 在当前窗口新建标签页 |
 | `Cmd+O` | 打开文件 |
 | `Cmd+F` | 聚焦搜索框 |
 | `Cmd+G` | 跳转到指定行号 |
@@ -105,6 +108,13 @@
 - 分割模式下才显示过滤结果面板
 - 左右分割（`HSplitView`）与上下分割（`VSplitView`）的分割线均可拖动以调整两区占比
 
+#### 多窗口 / 标签页
+
+- `Cmd+N` 打开一个全新的独立 app 窗口；`Cmd+T` 在当前窗口新建标签页（macOS 原生标签）。两者都新开一个空白视图（显示打开引导页），可分别打开不同文件
+- 每个窗口/标签页持有独立的 `FileReader` 与 `SearchEngine`，文件内容、搜索结果、标记互不影响
+- 窗口标题各自反映本窗口当前文件名（不再共用 `NSApp.windows.first`）
+- 菜单/快捷键命令（`Cmd+O/F/G/M`、`Cmd+Shift+M`、`Shift+Enter`）只作用于当前**激活（key）窗口**，不会广播到其它窗口；右键标记菜单与 `Cmd+M`/`Cmd+Shift+M` 始终作用于当前激活窗口的标记状态
+
 ### 2.4 数据处理
 
 - **行索引**：后台按 4MB 分块、用 `memchr` 扫描换行符建立行偏移表（O(n)），打开后按需 `seek` 读单行；文件读取加锁串行化，保证后台搜索与 UI 渲染并发安全
@@ -142,6 +152,7 @@
 ```
 Logpad/Logpad/
 ├── LogpadApp.swift          # App 入口、菜单与快捷键
+├── WindowManager.swift      # 多窗口/标签页创建、窗口引用解析
 ├── ContentView.swift        # 根视图、Shift+Enter 监听
 ├── MainView.swift           # 主界面、工具栏、分屏、GoToLine / Mark 弹窗
 ├── SelectableLogView.swift  # 单行日志（NSTextView + 高亮）
@@ -259,7 +270,8 @@ struct FilterPreset: Codable, Identifiable, Equatable {
 
 | 文件 | 职责 |
 |------|------|
-| `LogpadApp.swift` | App 入口；注册 `Cmd+O/F/G/M` 菜单命令 |
+| `LogpadApp.swift` | App 入口；注册 `Cmd+N/T/O/F/G/M` 菜单命令 |
+| `WindowManager.swift` | `Cmd+N` 新建独立窗口 / `Cmd+T` 新建标签页；`WindowAccessor` / `WindowHolder` 解析视图所属窗口 |
 | `ContentView.swift` | 根视图；`Shift+Enter` 全局监听 |
 | `MainView.swift` | 主布局、工具栏、分屏、`GoToLineView` / `MarkMenuView` |
 | `SelectableLogView.swift` | 单行 `NSTextView`：文本选择、右键 Mark、片段高亮 |

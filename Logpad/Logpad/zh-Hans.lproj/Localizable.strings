@@ -1,5 +1,7 @@
 /* General */
 "openFile" = "打开文件";
+"New Window" = "新建窗口";
+"New Tab" = "新建标签页";
 "Error" = "错误";
 "Loading..." = "加载中...";
 "Empty file" = "空文件";
