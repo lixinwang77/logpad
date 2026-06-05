@@ -1,3 +1,7 @@
 .DS_Store
 *.xcuserstate
 xcuserdata/
+
+# 构建产物（由 build_dmg.sh / xcodebuild 生成，可随时重建）
+build/
+DerivedData/

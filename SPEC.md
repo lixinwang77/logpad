@@ -208,16 +208,62 @@ Logpad/Logpad/
 
 ---
 
-## 7. 参考资料
+## 7. 打包 / 分发
+
+将 app 打包成 DMG，供其他 Mac 安装测试。
+
+### 7.1 一键打包
+
+仓库根目录提供 `build_dmg.sh`：
+
+```bash
+./build_dmg.sh
+```
+
+脚本流程：
+
+1. `xcodebuild -configuration Release` 构建出 `Logpad.app`
+2. 把 `.app` 与 `/Applications` 软链放入暂存目录
+3. `hdiutil` 压成 `build/Logpad-<MARKETING_VERSION>.dmg`
+
+产物：`build/Logpad-<版本>.dmg`（约 1.6MB）。
+
+### 7.2 构建约定
+
+| 项 | 取值 | 说明 |
+|---|---|---|
+| 架构 | **arm64 only** | 仅支持 Apple Silicon，不构建 Intel/通用二进制 |
+| 签名 | **ad-hoc**（`CODE_SIGN_IDENTITY = -`） | 无 Apple Developer 证书，未公证；仅供内部测试 |
+| 部署目标 | `MACOSX_DEPLOYMENT_TARGET = 26.5` | 测试机需运行 macOS 26.5+ |
+| 沙盒 | `ENABLE_APP_SANDBOX = YES`，文件只读 | — |
+
+### 7.3 测试者首次打开（绕过 Gatekeeper）
+
+因 ad-hoc 签名且未公证，从网络/隔离来源拿到的 DMG 首次打开会被 Gatekeeper 拦截。任选其一，仅需一次：
+
+- **右键打开**：「应用程序」中右键 `Logpad` → 打开 → 弹窗再点「打开」
+- 若提示"已损坏 / 无法打开"，终端执行一次：
+
+```bash
+xattr -dr com.apple.quarantine /Applications/Logpad.app
+```
+
+### 7.4 正式分发（未来）
+
+若取得 Apple Developer 账号，应改为 **Developer ID Application 签名 + `notarytool` 公证 + `stapler` 装订**，分发即无 Gatekeeper 警告，无需上述手动步骤。
+
+---
+
+## 8. 参考资料
 
 - [AppKit 文档](https://developer.apple.com/documentation/appkit)
 - [SwiftUI macOS 文档](https://developer.apple.com/documentation/swiftui/macos)
 
 ---
 
-## 8. 数据类型定义
+## 9. 数据类型定义
 
-### 8.1 核心结构
+### 9.1 核心结构
 
 ```swift
 // 单行日志
@@ -266,7 +312,7 @@ struct FilterPreset: Codable, Identifiable, Equatable {
 
 ---
 
-## 9. 模块职责
+## 10. 模块职责
 
 | 文件 | 职责 |
 |------|------|
@@ -282,7 +328,7 @@ struct FilterPreset: Codable, Identifiable, Equatable {
 
 ---
 
-## 10. 验收标准
+## 11. 验收标准
 
 ### M1 - 文件打开
 
