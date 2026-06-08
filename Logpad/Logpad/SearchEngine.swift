@@ -5,7 +5,7 @@ import Combine
 /// build a `String` for lines that actually contain the term. Case-insensitive
 /// matching folds ASCII A–Z only (sufficient for log content); the matched line
 /// is afterwards confirmed with a Unicode-aware `String` search.
-struct ByteNeedle {
+nonisolated struct ByteNeedle {
     private let raw: [UInt8]
     private let folded: [UInt8]
     private let caseInsensitive: Bool
@@ -228,12 +228,16 @@ final class SearchEngine: ObservableObject {
 
             if Task.isCancelled { return }
 
+            let finalResults = found
+            let finalLineResults = lineFound
+            let finalLineFirstIndex = lineFirstIndex
+            let finalIndex = index
             await MainActor.run { [weak self] in
                 guard let self else { return }
-                self.results = found
-                self.lineResults = lineFound
-                self.lineFirstResultIndex = lineFirstIndex
-                self.resultLineIndex = index
+                self.results = finalResults
+                self.lineResults = finalLineResults
+                self.lineFirstResultIndex = finalLineFirstIndex
+                self.resultLineIndex = finalIndex
                 self.currentMatchLineID = 0
                 self.currentMatchRange = nil
                 self.isSearching = false

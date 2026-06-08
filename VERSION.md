@@ -20,9 +20,13 @@
 
 ## 当前版本
 
-**1.13.6** (Build 32)
+**1.13.7** (Build 33)
 
 ## 变更记录
+
+### 1.13.7 (2026-06-08)
+
+- 清理 Xcode 编译警告：将 `LogLine` / `FilterResult` / `ByteNeedle` 标记为 `nonisolated`，并在后台搜索回主线程前拷贝为不可变值，消除 `SearchEngine` 的主线程隔离与并发捕获警告；删除资源目录中未引用的重复 `icon_1024.png`，修复 App 图标「unassigned child」警告；`Info.plist` 拖放回调显式忽略返回值
 
 ### 1.13.6 (2026-06-08)
 

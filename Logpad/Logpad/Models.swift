@@ -1,12 +1,12 @@
 import Foundation
 import SwiftUI
 
-struct LogLine: Identifiable, Equatable {
+nonisolated struct LogLine: Identifiable, Equatable {
     let id: Int
     let content: String
 }
 
-struct FilterResult: Identifiable, Equatable {
+nonisolated struct FilterResult: Identifiable, Equatable {
     let id: UUID
     let line: LogLine
     let highlightRange: Range<String.Index>?

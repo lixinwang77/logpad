@@ -104,7 +104,7 @@ struct MainView: View {
         }
         .onDrop(of: [.fileURL], isTargeted: nil) { providers in
             guard let item = providers.first else { return false }
-            item.loadObject(ofClass: URL.self) { url, _ in
+            _ = item.loadObject(ofClass: URL.self) { url, _ in
                 if let url = url {
                     _ = url.startAccessingSecurityScopedResource()
                     DispatchQueue.main.async {
