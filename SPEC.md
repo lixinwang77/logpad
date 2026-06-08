@@ -15,7 +15,7 @@
 
 | 功能 | 描述 | 优先级 | 状态 |
 |------|------|--------|------|
-| 文件打开 | 通过文件选择器或拖拽打开 `.log` / `.txt` 等纯文本文件 | P0 | 已实现 |
+| 文件打开 | 通过文件选择器、拖拽或 Finder 双击/「打开方式」打开 `.log` / `.txt` 等纯文本文件 | P0 | 已实现 |
 | 日志浏览 | 等宽字体、行号列、横纵滚动，按行按需读取 | P0 | 已实现 |
 | 跳转行号 | `Cmd+G` 弹出对话框，输入 1-based 行号跳转定位 | P0 | 已实现 |
 | 关键词搜索 | 工具栏实时搜索，支持正则、大小写选项，匹配片段黄色高亮 | P0 | 已实现 |
@@ -50,7 +50,7 @@
 
 #### 文件
 
-- **打开**：菜单 / `Cmd+O` / 工具栏文件夹按钮 / 拖拽到窗口
+- **打开**：菜单 / `Cmd+O` / 工具栏文件夹按钮 / 拖拽到窗口 / Finder 双击或「打开方式」（已运行时在新标签页打开）
 - **空状态**：未打开文件时显示引导页
 - **错误**：文件不存在或无法读取时显示错误页，可重试
 
@@ -114,6 +114,8 @@
 - 每个窗口/标签页持有独立的 `FileReader` 与 `SearchEngine`，文件内容、搜索结果、标记互不影响
 - 窗口标题各自反映本窗口当前文件名（不再共用 `NSApp.windows.first`）
 - 菜单/快捷键命令（`Cmd+O/F/G/M`、`Cmd+Shift+M`、`Shift+Enter`）只作用于当前**激活（key）窗口**，不会广播到其它窗口；右键标记菜单与 `Cmd+M`/`Cmd+Shift+M` 始终作用于当前激活窗口的标记状态
+- **外部打开**：Finder 双击 / 「打开方式」→ Logpad 时，冷启动直接在初始窗口打开文件；app 已显示文件时则在当前窗口的**新标签页**打开
+- **窗口恢复**：关闭 macOS 自动窗口恢复（`NSQuitAlwaysKeepsWindows=false`），并在启动 / 打开文件后清理多余的空闲独立窗口（最多保留一个引导页；已显示文件时不保留），避免空状态窗口累积
 
 ### 2.4 数据处理
 
@@ -316,7 +318,7 @@ struct FilterPreset: Codable, Identifiable, Equatable {
 
 | 文件 | 职责 |
 |------|------|
-| `LogpadApp.swift` | App 入口；注册 `Cmd+N/T/O/F/G/M` 菜单命令 |
+| `LogpadApp.swift` | App 入口；`NSApplicationDelegate` 接收 Finder 传入文件；注册 `Cmd+N/T/O/F/G/M` 菜单命令 |
 | `WindowManager.swift` | `Cmd+N` 新建独立窗口 / `Cmd+T` 新建标签页；`WindowAccessor` / `WindowHolder` 解析视图所属窗口 |
 | `ContentView.swift` | 根视图；`Shift+Enter` 全局监听 |
 | `MainView.swift` | 主布局、工具栏、分屏、`GoToLineView` / `MarkMenuView` |

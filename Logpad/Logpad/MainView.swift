@@ -51,6 +51,11 @@ struct MainView: View {
         })
         .onAppear {
             wireMarkCoordinator()
+            attemptExternalFileOpen()
+            scheduleExternalFileOpenRetry()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: ExternalFileOpener.notification)) { _ in
+            attemptExternalFileOpen()
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { note in
             // Re-point the shared mark coordinator at this window's engine
@@ -58,6 +63,7 @@ struct MainView: View {
             // right-click mark menu always act on the focused window.
             guard let win = note.object as? NSWindow, win === windowHolder.window else { return }
             wireMarkCoordinator()
+            attemptExternalFileOpen()
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWorkspace.didActivateApplicationNotification)) { notification in
             if let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
@@ -161,6 +167,23 @@ struct MainView: View {
         MarkCoordinator.shared.removeMarkColor = { searchEngine.removeMarks(color: $0) }
         MarkCoordinator.shared.removeMarkText = { searchEngine.removeMarks(text: $0) }
         MarkCoordinator.shared.clearAllMarks = { searchEngine.clearMarks() }
+    }
+
+    private func attemptExternalFileOpen() {
+        guard let url = ExternalFileOpener.shared.takePending(
+            for: windowHolder.window,
+            isKey: windowHolder.isKey,
+            hasOpenFile: !fileReader.fileName.isEmpty
+        ) else { return }
+        _ = url.startAccessingSecurityScopedResource()
+        fileReader.open(url: url)
+    }
+
+    /// Cold launch or tab creation may deliver the URL before this view is key.
+    private func scheduleExternalFileOpenRetry() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            attemptExternalFileOpen()
+        }
     }
 
     private func performSearch() {

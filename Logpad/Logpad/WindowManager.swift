@@ -52,14 +52,36 @@ final class WindowManager {
     /// Cmd+T: open a new tab attached to the current key window's tab group.
     /// `addTabbedWindow` groups the windows regardless of tabbing mode; if
     /// there's no key window we just show it standalone.
-    func newTab() {
+    @discardableResult
+    func newTab() -> NSWindow {
         let window = makeWindow()
-        if let key = NSApp.keyWindow {
-            key.addTabbedWindow(window, ordered: .above)
-        } else {
-            window.center()
-        }
+        attachAsTab(window, to: nil)
         window.makeKeyAndOrderFront(nil)
+        return window
+    }
+
+    /// Finder "Open With" while the app is already running: open the file in a
+    /// new tab attached to `host` (the window currently showing a file) so it
+    /// joins that window's tab group instead of becoming a standalone window.
+    @discardableResult
+    func openInNewTab(attachingTo host: NSWindow? = nil) -> NSWindow {
+        let window = makeWindow()
+        attachAsTab(window, to: host)
+        window.makeKeyAndOrderFront(nil)
+        return window
+    }
+
+    private func attachAsTab(_ window: NSWindow, to host: NSWindow?) {
+        guard let host = host ?? NSApp.keyWindow ?? NSApp.windows.first(where: \.isVisible) else {
+            window.center()
+            return
+        }
+        // The cold-launch window is created by SwiftUI's `WindowGroup` and has a
+        // different `tabbingIdentifier` than windows we make; match it so AppKit
+        // actually merges the new tab into the host's group rather than opening
+        // a separate window.
+        window.tabbingIdentifier = host.tabbingIdentifier
+        host.addTabbedWindow(window, ordered: .above)
     }
 }
 
