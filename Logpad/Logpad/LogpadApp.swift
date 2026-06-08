@@ -78,8 +78,20 @@ final class ExternalFileOpener {
     /// and closes all of them when any window already shows a file. The window
     /// currently receiving a file (`lastAssignedTargetWindow`) is never closed.
     private func pruneIdleWindows() {
+        let allVisible = NSApp.windows.filter(\.isVisible)
+
+        // Never prune while a modal panel/sheet is up (e.g. the Open dialog,
+        // which `fileImporter` attaches as a sheet to its window). Closing the
+        // window underneath would tear the sheet down with it — exactly the
+        // first-launch crash where the guide window vanishes as the open panel
+        // appears.
+        if allVisible.contains(where: { $0.attachedSheet != nil }) { return }
+
         let target = lastAssignedTargetWindow
-        let visible = NSApp.windows.filter(\.isVisible)
+        // Only consider our own content windows; panels (NSOpenPanel /
+        // NSSavePanel) and sheets aren't "file windows" and must not be counted
+        // or closed.
+        let visible = allVisible.filter { !($0 is NSPanel) && $0.sheetParent == nil }
 
         let hasFileWindow = visible.contains { $0.title != "Logpad" || $0 === target }
         let idleStandalone = visible.filter { window in
