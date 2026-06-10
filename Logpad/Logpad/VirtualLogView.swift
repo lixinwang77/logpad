@@ -205,6 +205,19 @@ final class LogRowView: NSView {
 
     private static let lineFont = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
     private static let contentFont = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
+    /// Paragraph style applied to every row. Without explicit tab handling, a
+    /// TAB that lands past the default tab stops (common in indented stack
+    /// traces) makes the single-line layout drop everything after it. Clearing
+    /// the stops, using a fixed interval, and clipping (not truncating) keeps
+    /// the full line — tabs included — visible.
+    private static let paragraphStyle: NSParagraphStyle = {
+        let style = NSMutableParagraphStyle()
+        style.lineBreakMode = .byClipping
+        style.tabStops = []
+        let spaceWidth = (" " as NSString).size(withAttributes: [.font: contentFont]).width
+        style.defaultTabInterval = max(spaceWidth * 4, 1)
+        return style
+    }()
     /// Background for ordinary search matches and the currently focused one.
     static let searchColor = NSColor.systemYellow
     static let currentSearchColor = NSColor.systemYellow.blended(withFraction: 0.5, of: .systemOrange) ?? .systemOrange
@@ -262,6 +275,7 @@ final class LogRowView: NSView {
         let fullRange = NSRange(location: 0, length: nsLength)
         attributed.addAttribute(.font, value: LogRowView.contentFont, range: fullRange)
         attributed.addAttribute(.foregroundColor, value: NSColor.labelColor, range: fullRange)
+        attributed.addAttribute(.paragraphStyle, value: LogRowView.paragraphStyle, range: fullRange)
 
         for (range, color) in markRanges where range.location >= 0 && range.location + range.length <= nsLength {
             attributed.addAttribute(.backgroundColor,
