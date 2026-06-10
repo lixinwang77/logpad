@@ -34,6 +34,12 @@ struct MainView: View {
                 ErrorView(message: error) {
                     showFilePicker = true
                 }
+            } else if fileReader.isLoading && fileReader.fileSize >= FileReader.indexProgressByteThreshold {
+                LoadingView(
+                    fileName: fileReader.fileName,
+                    progress: fileReader.indexProgress,
+                    fileSize: fileReader.fileSize
+                )
             } else if fileReader.totalLines == 0 && !fileReader.isLoading {
                 EmptyFileView {
                     showFilePicker = true
@@ -724,6 +730,39 @@ struct FileChangedBanner: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
         .background(Color.orange.opacity(0.12))
+    }
+}
+
+struct LoadingView: View {
+    let fileName: String
+    let progress: Double
+    let fileSize: Int64
+
+    private var sizeText: String {
+        ByteCountFormatter.string(fromByteCount: fileSize, countStyle: .file)
+    }
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "doc.text.magnifyingglass")
+                .font(.system(size: 48))
+                .foregroundColor(.secondary)
+            Text(fileName.isEmpty ? i18n.str("indexingTitle") : fileName)
+                .font(.headline)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            ProgressView(value: progress)
+                .progressViewStyle(.linear)
+                .frame(width: 260)
+            Text("\(Int(progress * 100))%  ·  \(sizeText)")
+                .font(.callout)
+                .foregroundColor(.secondary)
+                .monospacedDigit()
+            Text(i18n.str("indexingHint"))
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .padding(40)
     }
 }
 

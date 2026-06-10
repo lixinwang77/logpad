@@ -120,6 +120,7 @@
 ### 2.4 数据处理
 
 - **行索引**：后台按 4MB 分块、用 `memchr` 扫描换行符建立行偏移表（O(n)），打开后按需 `seek` 读单行；文件读取加锁串行化，保证后台搜索与 UI 渲染并发安全
+- **索引进度**：`open()` 记录文件总字节数 `fileSize`，索引循环按「已扫描字节 / 总字节」计算 `indexProgress`（0…1），节流约每前进 1% 才向主线程上报一次，避免多 GB 文件刷屏；文件大小 ≥ `indexProgressByteThreshold`（20MB）时主视图显示确定性进度条（`LoadingView`），小文件秒级完成不展示以免闪烁
 - **编码**：打开时读取 64KB 头采样做严格解码，先按 BOM / UTF-8 识别；否则同时尝试 GB18030（GBK 超集）与 Big5 并按解码质量评分（CJK Unified Ideographs +1，非 ASCII 非 CJK × -3 罚分，GB18030 解 Big5 字节会落到日文假名 / 杂项符号而被罚低），高分者胜出，平局默认 GB18030；结果存于 `FileReader.encoding`，`readLine` 与 `SearchEngine` 共用，工具栏右端实时显示当前编码名
 - **搜索管道**：后台线程顺序流式扫描文件（`forEachLineBytes`），先用字节级预筛（`ByteNeedle`：`memmem` / ASCII 折叠）筛选，命中行才解码为 `String` 并算精确高亮；输入带 250ms debounce
 - **标记管道**：标记**不做全文件预扫描**；`SearchEngine.addMark` 仅记录标记，渲染时由 `markRanges(in:)` 对每个可见行的内容即时计算命中范围（开销与可见行数成正比，与文件大小无关），避免大文件下添加标记触发整文件扫描造成 CPU 飙升
@@ -135,7 +136,7 @@
 | 未打开文件时 `Cmd+G` | 不响应 |
 | 跳转行号超出范围 | 对话框内提示，不跳转 |
 | 未选中文字时 `Cmd+M` | 不弹出颜色面板 |
-| 超大文件（>1GB） | 首次索引时显示加载状态（进度条待完善） |
+| 超大文件（>1GB） | 首次索引时显示确定性进度条（已扫描字节 / 文件总大小，节流约每 1% 刷新），完成后进入浏览 |
 | 文件在外部被修改 | 检测到写入/删除/替换后，工具栏下方提示条，可重新加载（`Cmd+R`，保持滚动位置）或忽略 |
 
 ---
@@ -191,7 +192,7 @@ Logpad/Logpad/
 | M2 | 大文件行索引 + 按行浏览 | 已完成 |
 | M3 | 搜索 / 高亮 / 分屏 / 联动跳转 | 已完成 |
 | M4 | 跳转行号、文本标记、搜索导航、双语界面 | 已完成 |
-| M5 | 虚拟滚动接入（已完成）、文件变更检测（已完成）、GBK 编码（已完成） | 已完成 |
+| M5 | 虚拟滚动接入（已完成）、文件变更检测（已完成）、GBK 编码（已完成）、超大文件索引进度条（已完成） | 已完成 |
 | M6 | 搜索预设（保存 / 套用 / 管理、重命名、删除、UserDefaults 持久化） | 待实现 |
 
 ---
@@ -323,7 +324,7 @@ struct FilterPreset: Codable, Identifiable, Equatable {
 | `ContentView.swift` | 根视图；`Shift+Enter` 全局监听 |
 | `MainView.swift` | 主布局、工具栏、分屏、`GoToLineView` / `MarkMenuView` |
 | `SelectableLogView.swift` | 单行 `NSTextView`：文本选择、右键 Mark、片段高亮 |
-| `FileReader.swift` | 分块建索引、`readLine(at:)` |
+| `FileReader.swift` | 分块建索引（含 `indexProgress` / `fileSize` 进度上报）、`readLine(at:)` |
 | `SearchEngine.swift` | `search(condition:)`、`addMark(_:)` / `markRanges(in:)` |
 | `VirtualScrollManager.swift` | 可见行范围（预留） |
 | `LanguageManager.swift` / `i18n.swift` | 中英文本地化 |
@@ -367,7 +368,7 @@ struct FilterPreset: Codable, Identifiable, Equatable {
 - [x] 真正虚拟滚动（`NSTableView` 行回收，不创建全部行视图）
 - [x] 外部文件修改检测与提示（写入/删除/替换，重新加载并保持滚动位置）
 - [x] GBK 等编码自动检测
-- [ ] 超大文件索引进度条
+- [x] 超大文件索引进度条（确定性进度条，按字节进度刷新）
 
 ### M6 - 搜索预设
 

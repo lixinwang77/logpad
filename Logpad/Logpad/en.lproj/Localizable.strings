@@ -5,6 +5,8 @@
 "Error" = "Error";
 "Loading..." = "Loading...";
 "Empty file" = "Empty file";
+"indexingTitle" = "Indexing…";
+"indexingHint" = "Building line index, please wait";
 
 /* Go to line */
 "Go to Line" = "Go to Line";

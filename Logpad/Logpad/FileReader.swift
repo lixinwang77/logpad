@@ -18,6 +18,15 @@ final class FileReader: ObservableObject {
     private var changeDebounce: DispatchWorkItem?
 
     @Published var isLoading: Bool = false
+    /// Fraction of the file scanned while building the line index (0...1).
+    /// Drives the indexing progress bar; only meaningful while `isLoading`.
+    @Published private(set) var indexProgress: Double = 0
+    /// Size of the open file in bytes, captured in `open()`. Used to decide
+    /// whether the indexing is slow enough to warrant a visible progress UI.
+    @Published private(set) var fileSize: Int64 = 0
+    /// Files at or above this size show a determinate indexing progress view;
+    /// smaller files index near-instantly and would only flash the UI.
+    static let indexProgressByteThreshold: Int64 = 20 * 1024 * 1024
     @Published var error: String?
     @Published private(set) var fileName: String = ""
     var filePathString: String { filePath?.path ?? "" }
@@ -41,10 +50,16 @@ final class FileReader: ObservableObject {
         error = nil
         fileChangedExternally = false
         encoding = .utf8
+        indexProgress = 0
+        fileSize = 0
 
         guard FileManager.default.fileExists(atPath: url.path) else {
             error = "File does not exist"
             return
+        }
+
+        if let size = try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int64 {
+            fileSize = size
         }
 
         do {
@@ -72,6 +87,8 @@ final class FileReader: ObservableObject {
     private func indexFile() {
         guard let handle = fileHandle else { return }
         isLoading = true
+        indexProgress = 0
+        let totalBytes = fileSize
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
@@ -80,6 +97,9 @@ final class FileReader: ObservableObject {
             offsets.reserveCapacity(1 << 20)
             let chunkSize = 4 * 1024 * 1024
             var base: UInt64 = 0
+            // Only push progress to the main thread when it advances by ~1%, so
+            // multi-GB files don't flood the run loop with redundant updates.
+            var lastReported = 0.0
 
             do {
                 while true {
@@ -102,6 +122,14 @@ final class FileReader: ObservableObject {
                     }
 
                     base += UInt64(data.count)
+
+                    if totalBytes > 0 {
+                        let progress = min(Double(base) / Double(totalBytes), 1.0)
+                        if progress - lastReported >= 0.01 {
+                            lastReported = progress
+                            DispatchQueue.main.async { self.indexProgress = progress }
+                        }
+                    }
                 }
 
                 // Account for a final line that isn't terminated by a newline.
@@ -117,6 +145,7 @@ final class FileReader: ObservableObject {
                 self.lineOffsets = offsets
                 self.totalLines = offsets.count - 1
                 self.ioLock.unlock()
+                self.indexProgress = 1
                 self.isLoading = false
                 NotificationCenter.default.post(name: NSNotification.Name("FileDidLoad"), object: nil)
             }
