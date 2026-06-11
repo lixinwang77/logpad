@@ -52,3 +52,19 @@
 
 /* Encoding */
 "encodingHint" = "已自动检测到的文本编码";
+
+/* Preset sidebar */
+"presetsTitle" = "预设";
+"addGroup" = "新建组";
+"newGroupNamePlaceholder" = "组名";
+"addWord" = "添加过滤词";
+"newWordPlaceholder" = "过滤词";
+"rename" = "重命名";
+"delete" = "删除";
+"deleteGroupConfirm" = "删除该预设组？";
+"duplicateGroupName" = "已存在同名的组。";
+"applyGroupHint" = "套用该组的全部过滤词";
+"collapseGroup" = "折叠该组";
+"expandGroup" = "展开该组";
+"sidebarToggleHint" = "显示/隐藏预设侧栏";
+"noPresetsHint" = "暂无预设，点 + 新建组。";

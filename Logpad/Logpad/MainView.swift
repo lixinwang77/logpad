@@ -27,6 +27,10 @@ struct MainView: View {
     @State private var pendingMarkText = ""
     @State private var showGoToLine = false
     @State private var goToLineInput = ""
+    /// Per-window visibility of the preset filter sidebar (each window/tab is
+    /// independent). The preset data itself is shared via `PresetStore.shared`.
+    @State private var showSidebar = false
+    @ObservedObject private var presetStore = PresetStore.shared
 
     var body: some View {
         Group {
@@ -238,6 +242,22 @@ struct MainView: View {
         searchEngine.addMark(HighlightMark(text: text, color: color))
     }
 
+    /// Applies preset words to the search box: joins them with `|`, appends to
+    /// any existing keyword (also `|`-joined), and force-enables Regex so the
+    /// alternation is honored. Mutating `filterCondition` triggers the existing
+    /// `onChange` handler, which runs the search and auto-opens the split.
+    private func applyPreset(words: [String]) {
+        let combined = words
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: "|")
+        guard !combined.isEmpty else { return }
+
+        let current = filterCondition.keyword
+        filterCondition.isRegex = true
+        filterCondition.keyword = current.isEmpty ? combined : current + "|" + combined
+    }
+
     /// Clicking a row in the (deduplicated) result list focuses that line's
     /// first match occurrence, so subsequent Enter/arrow navigation continues
     /// from there through any further matches on the line.
@@ -250,11 +270,71 @@ struct MainView: View {
         searchEngine.focusMatch(at: resultIndex)
     }
 
+    /// The log area to the right of the preset sidebar: the single-window log
+    /// view, or the up/down / left-right split with the filter result panel.
+    @ViewBuilder
+    private var logArea: some View {
+        if splitMode == .none {
+            LogContentView(
+                fileReader: fileReader,
+                searchEngine: searchEngine,
+                targetLine: $targetLine,
+                onTextSelected: { text in
+                    pendingMarkText = text
+                    showMarkMenu = true
+                }
+            )
+        } else if splitMode == .vertical {
+            HSplitView {
+                LogContentView(
+                    fileReader: fileReader,
+                    searchEngine: searchEngine,
+                    targetLine: $targetLine,
+                    onTextSelected: { text in
+                        pendingMarkText = text
+                        showMarkMenu = true
+                    }
+                )
+                FilterResultView(
+                    results: searchEngine.lineResults,
+                    matchCount: searchEngine.results.count,
+                    searchRanges: { searchEngine.searchRanges(forLineID: $0) },
+                    onResultSelected: { displayIndex in
+                        selectResultLine(displayIndex)
+                    },
+                    fileName: fileReader.filePathString
+                )
+            }
+        } else {
+            VSplitView {
+                LogContentView(
+                    fileReader: fileReader,
+                    searchEngine: searchEngine,
+                    targetLine: $targetLine,
+                    onTextSelected: { text in
+                        pendingMarkText = text
+                        showMarkMenu = true
+                    }
+                )
+                FilterResultView(
+                    results: searchEngine.lineResults,
+                    matchCount: searchEngine.results.count,
+                    searchRanges: { searchEngine.searchRanges(forLineID: $0) },
+                    onResultSelected: { displayIndex in
+                        selectResultLine(displayIndex)
+                    },
+                    fileName: fileReader.filePathString
+                )
+            }
+        }
+    }
+
     @ViewBuilder
     private var mainContent: some View {
         VStack(spacing: 0) {
             ToolbarView(
                 splitMode: $splitMode,
+                showSidebar: $showSidebar,
                 filterCondition: $filterCondition,
                 isSearching: searchEngine.isSearching,
                 hasResults: !searchEngine.results.isEmpty,
@@ -277,58 +357,17 @@ struct MainView: View {
                 Divider()
             }
 
-            if splitMode == .none {
-                LogContentView(
-                    fileReader: fileReader,
-                    searchEngine: searchEngine,
-                    targetLine: $targetLine,
-                    onTextSelected: { text in
-                        pendingMarkText = text
-                        showMarkMenu = true
-                    }
-                )
-            } else if splitMode == .vertical {
+            if showSidebar {
                 HSplitView {
-                    LogContentView(
-                        fileReader: fileReader,
-                        searchEngine: searchEngine,
-                        targetLine: $targetLine,
-                        onTextSelected: { text in
-                            pendingMarkText = text
-                            showMarkMenu = true
-                        }
+                    PresetSidebarView(
+                        store: presetStore,
+                        onApplyGroup: { applyPreset(words: $0.words.map(\.text)) },
+                        onApplyWord: { applyPreset(words: [$0]) }
                     )
-                    FilterResultView(
-                        results: searchEngine.lineResults,
-                        matchCount: searchEngine.results.count,
-                        searchRanges: { searchEngine.searchRanges(forLineID: $0) },
-                        onResultSelected: { displayIndex in
-                            selectResultLine(displayIndex)
-                        },
-                        fileName: fileReader.filePathString
-                    )
+                    logArea
                 }
             } else {
-                VSplitView {
-                    LogContentView(
-                        fileReader: fileReader,
-                        searchEngine: searchEngine,
-                        targetLine: $targetLine,
-                        onTextSelected: { text in
-                            pendingMarkText = text
-                            showMarkMenu = true
-                        }
-                    )
-                    FilterResultView(
-                        results: searchEngine.lineResults,
-                        matchCount: searchEngine.results.count,
-                        searchRanges: { searchEngine.searchRanges(forLineID: $0) },
-                        onResultSelected: { displayIndex in
-                            selectResultLine(displayIndex)
-                        },
-                        fileName: fileReader.filePathString
-                    )
-                }
+                logArea
             }
         }
         .onChange(of: filterCondition) { _, newCondition in
@@ -459,6 +498,7 @@ struct LogLineRow: View {
 
 struct ToolbarView: View {
     @Binding var splitMode: SplitMode
+    @Binding var showSidebar: Bool
     @Binding var filterCondition: FilterCondition
     let isSearching: Bool
     let hasResults: Bool
@@ -472,6 +512,15 @@ struct ToolbarView: View {
 
     var body: some View {
         HStack {
+            Button {
+                showSidebar.toggle()
+            } label: {
+                Image(systemName: "sidebar.left")
+            }
+            .buttonStyle(.borderless)
+            .foregroundColor(showSidebar ? .accentColor : .secondary)
+            .help(i18n.str("sidebarToggleHint"))
+
             Button(action: onOpenFile) {
                 Image(systemName: "folder")
             }

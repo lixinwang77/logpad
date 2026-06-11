@@ -24,7 +24,7 @@
 | 大文件支持 | 后台分块建立行索引，不将整个文件载入内存 | P0 | 已实现 |
 | 双窗口分割 | 主日志区 + 过滤结果区，支持单窗 / 水平 / 垂直三种布局，分割线可拖动调整占比；过滤结果面板顶部显示文件路径与匹配统计 | P0 | 已实现 |
 | 搜索自动分屏 | 搜索过滤词后若当前为单窗口，自动切换为上下分割显示过滤结果面板 | P1 | 已实现 |
-| 搜索预设 | 把当前搜索条件（关键词 + Regex + Aa）保存为命名预设；可一键套用预设；管理界面支持重命名与删除 | P1 | 待实现 |
+| 搜索预设侧栏 | 左侧栏按「组（带组名）→ 多个过滤词」管理预设；点组套用组内全部词（`\|` 合并），点词套用单词，均追加到搜索框并自动开启 Regex；侧栏内联增删改组/词，`UserDefaults` 持久化、全窗口共享 | P1 | 已实现 |
 | 联动跳转 | 点击过滤结果列表中的行，主视图滚动到对应行 | P0 | 已实现 |
 | 双语界面 | 中英文文案，工具栏可手动切换语言 | P1 | 已实现 |
 | App 图标 | macOS Dock 图标与应用窗口图标 | P1 | 已实现 |
@@ -66,19 +66,26 @@
 - 点击结果面板中的某行，跳转并聚焦该行的**第一个**匹配，之后的 `Enter`/箭头从该匹配继续
 - 当前导航到的匹配以**更深的黄橙色**背景标示（其余匹配为普通黄色），便于辨认正聚焦的是哪一个
 
-#### 搜索预设
+#### 搜索预设侧栏
 
-排查某类问题时过滤词往往固定。把「关键词 + Regex + Aa」三者打包保存为命名预设，下次排查同类问题时直接套用，不必重新输入。
+排查某类问题时过滤词往往固定。用窗口左侧的「预设侧栏」按**组**管理常用过滤词，下次直接点击套用，不必重新输入。
 
-- **形态**：每个预设保存单一关键词 + Regex/Aa 状态，与当前 `FilterCondition` 同构；如需匹配多个模式，可在保存为 Regex 预设时用 `|` 组合
-- **保存当前**：工具栏搜索框旁新增「预设」按钮（图标 `bookmark`），点击菜单选择「保存当前搜索为预设...」弹出命名对话框，确认后将当前 `FilterCondition` 整体保存（含保存时间戳）
-  - 名称必填且**全局唯一**；重名时弹覆盖确认（覆盖即把现有预设的关键词/Regex/Aa 整体替换为新值，名称不变）
-  - 预设保存的是触发保存那一刻的关键词、Regex、Aa 状态；后续修改搜索框或开关**不会反向更新**已保存的预设
-- **套用预设**：菜单顶部按保存时间倒序**列出全部预设**（每项显示名称与关键词），点击即把 `FilterCondition` 恢复为预设值并触发搜索（与正常输入搜索的行为一致，含自动分屏）
-- **管理预设**：菜单底部「管理预设...」打开管理窗口，列表显示每个预设的名称、关键词、Regex/Aa 标记；每行可重命名（同名校验同保存）、删除（带确认）
-- **持久化**：所有预设写入 `UserDefaults` 的 `filterPresets` 键，值为 JSON 编码的 `FilterPreset` 数组；卸载 app 或清除沙盒数据时丢失
-- **本地化**：菜单项、对话框按钮、管理界面文案均跟随工具栏语言切换
-- **v1 不提供**：导入/导出、快捷键直接套用、云同步、按文件夹分组
+- **形态**：预设按「组 → 多个过滤词」两层组织。每个**组**有组名（**全局唯一，不区分大小写**；新建/重命名时重名会弹提示并保持编辑态不提交），组内含若干**过滤词**（纯文本字符串，不单独保存 Regex/Aa）
+- **侧栏显隐**：工具栏最左侧新增侧栏开关按钮（图标 `sidebar.left`，激活态高亮），切换左侧栏显示/隐藏；**显隐状态每个窗口/标签页独立**；侧栏与右侧日志区组成 `HSplitView`，分割线可拖动调整侧栏宽度
+- **套用预设**（追加语义）：
+  - 点击**组名**：把组内所有过滤词用 `|` 合并后**追加**到搜索框（若搜索框已有内容，用 `|` 连接到其后）
+  - 点击**单个过滤词**：把该词**追加**到搜索框
+  - 因为以 `|` 连接（正则语法），套用时**自动打开 Regex 开关**；大小写沿用当前工具栏的 Aa 设置
+  - 套用后等同正常输入搜索：触发搜索、单窗口下自动分屏
+- **折叠/展开**：含过滤词的组名左侧显示展开箭头（`chevron.down` / `chevron.right`），点击折叠或展开组内过滤词；折叠状态按组持久化（`UserDefaults` 键 `collapsedPresetGroupIDs`），重启后保留；折叠态下点「加词」会先自动展开
+- **增删改**（全部内联在侧栏完成）：
+  - 顶部「+」新建组（内联输入组名）
+  - 组名行悬停显示「重命名 / 加词 / 删组」：重命名、加词为内联输入框；删组带确认对话框
+  - 过滤词行悬停显示「编辑 / 删除」：编辑为内联输入框，删除即时
+  - 内联输入框失焦（点击主窗口或侧栏空白处）即提交并收起
+- **持久化**：所有预设组写入 `UserDefaults` 的 `filterPresetGroups` 键，值为 JSON 编码的 `[FilterPresetGroup]`；由单例 `PresetStore.shared` 持有，全窗口/标签页共享同步；卸载 app 或清除沙盒数据时丢失
+- **本地化**：侧栏标题、按钮提示、对话框文案均跟随工具栏语言切换
+- **v1 不提供**：导入/导出、快捷键直接套用、云同步、组拖拽排序
 
 #### 跳转行号
 
@@ -159,6 +166,8 @@ Logpad/Logpad/
 ├── ContentView.swift        # 根视图、Shift+Enter 监听
 ├── MainView.swift           # 主界面、工具栏、分屏、GoToLine / Mark 弹窗
 ├── SelectableLogView.swift  # 单行日志（NSTextView + 高亮）
+├── PresetStore.swift        # 搜索预设组的全局存储与 UserDefaults 持久化
+├── PresetSidebarView.swift  # 左侧预设侧栏（分组列表、内联增删改、套用）
 ├── FileReader.swift         # 大文件分块索引与按行读取
 ├── EncodingDetector.swift   # 打开时按字节采样识别文件编码
 ├── SearchEngine.swift       # 搜索、正则匹配、标记扫描
@@ -193,7 +202,7 @@ Logpad/Logpad/
 | M3 | 搜索 / 高亮 / 分屏 / 联动跳转 | 已完成 |
 | M4 | 跳转行号、文本标记、搜索导航、双语界面 | 已完成 |
 | M5 | 虚拟滚动接入（已完成）、文件变更检测（已完成）、GBK 编码（已完成）、超大文件索引进度条（已完成） | 已完成 |
-| M6 | 搜索预设（保存 / 套用 / 管理、重命名、删除、UserDefaults 持久化） | 待实现 |
+| M6 | 搜索预设侧栏（组 / 词、内联增删改、点组/点词套用、UserDefaults 持久化、全窗口共享） | 已完成 |
 
 ---
 
@@ -302,14 +311,16 @@ struct HighlightMark {
     let color: HighlightColor  // red / orange / green / blue / purple
 }
 
-// 搜索预设
-struct FilterPreset: Codable, Identifiable, Equatable {
-    let id: UUID
-    var name: String              // 用户命名，全局唯一
-    var keyword: String           // 单关键词
-    var isRegex: Bool
-    var isCaseSensitive: Bool
-    let createdAt: Date           // 用于菜单按时间倒序排列
+// 搜索预设：组 → 多个过滤词
+struct FilterPresetWord: Codable, Identifiable, Equatable {
+    var id = UUID()
+    var text: String              // 纯文本过滤词
+}
+
+struct FilterPresetGroup: Codable, Identifiable, Equatable {
+    var id = UUID()
+    var name: String              // 组名（全局唯一，不区分大小写）
+    var words: [FilterPresetWord]
 }
 ```
 
@@ -324,6 +335,8 @@ struct FilterPreset: Codable, Identifiable, Equatable {
 | `ContentView.swift` | 根视图；`Shift+Enter` 全局监听 |
 | `MainView.swift` | 主布局、工具栏、分屏、`GoToLineView` / `MarkMenuView` |
 | `SelectableLogView.swift` | 单行 `NSTextView`：文本选择、右键 Mark、片段高亮 |
+| `PresetStore.swift` | 单例 `ObservableObject`，预设组的增删改与 `UserDefaults` 持久化（键 `filterPresetGroups`），全窗口共享 |
+| `PresetSidebarView.swift` | 左侧预设侧栏：分组/词列表、内联增删改、点组/点词回调套用 |
 | `FileReader.swift` | 分块建索引（含 `indexProgress` / `fileSize` 进度上报）、`readLine(at:)` |
 | `SearchEngine.swift` | `search(condition:)`、`addMark(_:)` / `markRanges(in:)` |
 | `VirtualScrollManager.swift` | 可见行范围（预留） |
@@ -370,11 +383,10 @@ struct FilterPreset: Codable, Identifiable, Equatable {
 - [x] GBK 等编码自动检测
 - [x] 超大文件索引进度条（确定性进度条，按字节进度刷新）
 
-### M6 - 搜索预设
+### M6 - 搜索预设侧栏
 
-- [ ] 工具栏新增「预设」按钮，菜单可「保存当前搜索为预设...」
-- [ ] 保存对话框校验名称非空、重名时弹覆盖确认；确认后预设写入 UserDefaults
-- [ ] 菜单按保存时间倒序列出全部预设（显示名称 + 关键词），点击套用后关键词与 Regex/Aa 同步更新并触发搜索
-- [ ] 「管理预设...」打开管理窗口，支持重命名（同名校验同保存）、删除（带确认）
-- [ ] 预设随 app 重启保留；清空/删除全部后菜单与「保存当前」/管理功能仍可用
-- [ ] 菜单项、对话框按钮、管理窗口文案随工具栏语言切换
+- [x] 工具栏侧栏开关按钮切换左侧栏显隐（每窗口独立），分割线可拖动调整侧栏宽度
+- [x] 侧栏内联新建/重命名/删除组（删组带确认、组名重名校验不区分大小写）、添加/编辑/删除过滤词
+- [x] 点击组名套用组内全部词（`|` 合并）、点击单词套用单词，均追加到搜索框并自动开启 Regex，触发搜索与自动分屏
+- [x] 预设写入 UserDefaults（`filterPresetGroups`），随 app 重启保留，全窗口/标签页共享同步
+- [x] 侧栏标题、按钮提示、对话框文案随工具栏语言切换

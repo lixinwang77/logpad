@@ -52,3 +52,19 @@
 
 /* Encoding */
 "encodingHint" = "Detected text encoding";
+
+/* Preset sidebar */
+"presetsTitle" = "Presets";
+"addGroup" = "New Group";
+"newGroupNamePlaceholder" = "Group name";
+"addWord" = "Add Word";
+"newWordPlaceholder" = "Filter word";
+"rename" = "Rename";
+"delete" = "Delete";
+"deleteGroupConfirm" = "Delete this preset group?";
+"duplicateGroupName" = "A group with this name already exists.";
+"applyGroupHint" = "Apply all words in this group";
+"collapseGroup" = "Collapse group";
+"expandGroup" = "Expand group";
+"sidebarToggleHint" = "Toggle preset sidebar";
+"noPresetsHint" = "No presets yet. Tap + to create a group.";

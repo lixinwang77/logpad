@@ -65,3 +65,19 @@ struct HighlightMark: Equatable {
     let text: String
     let color: HighlightColor
 }
+
+/// A single plain-text filter word inside a preset group. Applying it appends
+/// the text to the search box; the search options (Regex/Aa) are not stored
+/// per word.
+struct FilterPresetWord: Codable, Identifiable, Equatable {
+    var id = UUID()
+    var text: String
+}
+
+/// A named group of preset filter words shown in the left sidebar. Applying the
+/// whole group joins all words with `|` into a single regex.
+struct FilterPresetGroup: Codable, Identifiable, Equatable {
+    var id = UUID()
+    var name: String              // unique (case-insensitive); enforced in PresetStore
+    var words: [FilterPresetWord]
+}
