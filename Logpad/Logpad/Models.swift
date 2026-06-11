@@ -68,10 +68,30 @@ struct HighlightMark: Equatable {
 
 /// A single plain-text filter word inside a preset group. Applying it appends
 /// the text to the search box; the search options (Regex/Aa) are not stored
-/// per word.
+/// per word. `isEnabled` controls whether the word is included when the whole
+/// group is applied (a word can still be applied directly by clicking it).
 struct FilterPresetWord: Codable, Identifiable, Equatable {
     var id = UUID()
     var text: String
+    var isEnabled: Bool = true
+
+    enum CodingKeys: String, CodingKey { case id, text, isEnabled }
+
+    init(id: UUID = UUID(), text: String, isEnabled: Bool = true) {
+        self.id = id
+        self.text = text
+        self.isEnabled = isEnabled
+    }
+
+    // Backward compatible: words saved by older builds have no `isEnabled`
+    // key, so default a missing value to enabled rather than failing to decode
+    // (which would drop the user's presets).
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        text = try container.decode(String.self, forKey: .text)
+        isEnabled = try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? true
+    }
 }
 
 /// A named group of preset filter words shown in the left sidebar. Applying the

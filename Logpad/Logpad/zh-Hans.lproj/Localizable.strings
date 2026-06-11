@@ -66,5 +66,7 @@
 "applyGroupHint" = "套用该组的全部过滤词";
 "collapseGroup" = "折叠该组";
 "expandGroup" = "展开该组";
+"wordEnabledHint" = "套用整组时包含该词（点击可排除）";
+"wordDisabledHint" = "套用整组时不含该词（点击可包含）";
 "sidebarToggleHint" = "显示/隐藏预设侧栏";
 "noPresetsHint" = "暂无预设，点 + 新建组。";

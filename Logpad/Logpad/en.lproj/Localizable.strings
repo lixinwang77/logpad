@@ -66,5 +66,7 @@
 "applyGroupHint" = "Apply all words in this group";
 "collapseGroup" = "Collapse group";
 "expandGroup" = "Expand group";
+"wordEnabledHint" = "Included when applying the group (click to exclude)";
+"wordDisabledHint" = "Excluded from the group (click to include)";
 "sidebarToggleHint" = "Toggle preset sidebar";
 "noPresetsHint" = "No presets yet. Tap + to create a group.";

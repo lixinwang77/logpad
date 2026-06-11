@@ -255,13 +255,45 @@ struct MainView: View {
         // Treat the current keyword as `|`-separated tokens and only append words
         // not already present, so re-applying the same group/word doesn't pile up
         // duplicates (e.g. `a|b` clicked twice stays `a|b`).
-        var tokens = filterCondition.keyword
-            .split(separator: "|", omittingEmptySubsequences: true)
-            .map(String.init)
+        var tokens = currentKeywordTokens()
         for word in newWords where !tokens.contains(word) {
             tokens.append(word)
         }
 
+        setKeywordTokens(tokens)
+    }
+
+    /// Applying a whole group syncs that group's contribution to the search box:
+    /// removes any of the group's words first (dropping ones just unchecked),
+    /// then re-adds its enabled words. Tokens from other sources (manual input
+    /// or other groups) are preserved.
+    private func applyPresetGroup(_ group: FilterPresetGroup) {
+        let groupWords = Set(
+            group.words
+                .map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+        )
+        guard !groupWords.isEmpty else { return }
+
+        var tokens = currentKeywordTokens().filter { !groupWords.contains($0) }
+        let enabled = group.words
+            .filter(\.isEnabled)
+            .map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        for word in enabled where !tokens.contains(word) {
+            tokens.append(word)
+        }
+
+        setKeywordTokens(tokens)
+    }
+
+    private func currentKeywordTokens() -> [String] {
+        filterCondition.keyword
+            .split(separator: "|", omittingEmptySubsequences: true)
+            .map(String.init)
+    }
+
+    private func setKeywordTokens(_ tokens: [String]) {
         filterCondition.isRegex = true
         filterCondition.keyword = tokens.joined(separator: "|")
     }
@@ -369,7 +401,7 @@ struct MainView: View {
                 HSplitView {
                     PresetSidebarView(
                         store: presetStore,
-                        onApplyGroup: { applyPreset(words: $0.words.map(\.text)) },
+                        onApplyGroup: { applyPresetGroup($0) },
                         onApplyWord: { applyPreset(words: [$0]) }
                     )
                     logArea

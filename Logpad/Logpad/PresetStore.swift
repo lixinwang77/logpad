@@ -109,4 +109,10 @@ final class PresetStore: ObservableObject {
         guard let gIdx = groups.firstIndex(where: { $0.id == groupID }) else { return }
         groups[gIdx].words.removeAll { $0.id == wordID }
     }
+
+    func toggleWordEnabled(_ wordID: UUID, in groupID: UUID) {
+        guard let gIdx = groups.firstIndex(where: { $0.id == groupID }),
+              let wIdx = groups[gIdx].words.firstIndex(where: { $0.id == wordID }) else { return }
+        groups[gIdx].words[wIdx].isEnabled.toggle()
+    }
 }

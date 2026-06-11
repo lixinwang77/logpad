@@ -244,9 +244,19 @@ private struct PresetGroupView: View {
                 .padding(.trailing, 8)
         } else {
             HStack(spacing: 4) {
+                Button { store.toggleWordEnabled(word.id, in: group.id) } label: {
+                    Image(systemName: word.isEnabled ? "checkmark.square.fill" : "square")
+                        .font(.caption)
+                        .foregroundColor(word.isEnabled ? .accentColor : .secondary)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.borderless)
+                .help(i18n.str(word.isEnabled ? "wordEnabledHint" : "wordDisabledHint"))
+
                 Button(action: { onApplyWord(word.text) }) {
                     Text(word.text)
                         .lineLimit(1)
+                        .foregroundColor(word.isEnabled ? .primary : .secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .contentShape(Rectangle())
                 }
