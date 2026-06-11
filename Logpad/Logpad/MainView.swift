@@ -247,15 +247,23 @@ struct MainView: View {
     /// alternation is honored. Mutating `filterCondition` triggers the existing
     /// `onChange` handler, which runs the search and auto-opens the split.
     private func applyPreset(words: [String]) {
-        let combined = words
+        let newWords = words
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
-            .joined(separator: "|")
-        guard !combined.isEmpty else { return }
+        guard !newWords.isEmpty else { return }
 
-        let current = filterCondition.keyword
+        // Treat the current keyword as `|`-separated tokens and only append words
+        // not already present, so re-applying the same group/word doesn't pile up
+        // duplicates (e.g. `a|b` clicked twice stays `a|b`).
+        var tokens = filterCondition.keyword
+            .split(separator: "|", omittingEmptySubsequences: true)
+            .map(String.init)
+        for word in newWords where !tokens.contains(word) {
+            tokens.append(word)
+        }
+
         filterCondition.isRegex = true
-        filterCondition.keyword = current.isEmpty ? combined : current + "|" + combined
+        filterCondition.keyword = tokens.joined(separator: "|")
     }
 
     /// Clicking a row in the (deduplicated) result list focuses that line's
