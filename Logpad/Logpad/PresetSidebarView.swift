@@ -7,7 +7,6 @@ import SwiftUI
 struct PresetSidebarView: View {
     @ObservedObject var store: PresetStore
     let onApplyGroup: (FilterPresetGroup) -> Void
-    let onApplyWord: (String) -> Void
 
     @ObservedObject private var langManager = LanguageManager.shared
     @State private var addingGroup = false
@@ -47,8 +46,7 @@ struct PresetSidebarView: View {
                             PresetGroupView(
                                 group: group,
                                 store: store,
-                                onApplyGroup: onApplyGroup,
-                                onApplyWord: onApplyWord
+                                onApplyGroup: onApplyGroup
                             )
                         }
                     }
@@ -112,7 +110,6 @@ private struct PresetGroupView: View {
     let group: FilterPresetGroup
     @ObservedObject var store: PresetStore
     let onApplyGroup: (FilterPresetGroup) -> Void
-    let onApplyWord: (String) -> Void
 
     private enum Field: Hashable {
         case rename
@@ -253,7 +250,7 @@ private struct PresetGroupView: View {
                 .buttonStyle(.borderless)
                 .help(i18n.str(word.isEnabled ? "wordEnabledHint" : "wordDisabledHint"))
 
-                Button(action: { onApplyWord(word.text) }) {
+                Button { store.toggleWordEnabled(word.id, in: group.id) } label: {
                     Text(word.text)
                         .lineLimit(1)
                         .foregroundColor(word.isEnabled ? .primary : .secondary)
@@ -261,6 +258,7 @@ private struct PresetGroupView: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .help(i18n.str(word.isEnabled ? "wordEnabledHint" : "wordDisabledHint"))
 
                 HStack(spacing: 2) {
                     iconButton("square.and.pencil", help: i18n.str("rename")) {

@@ -246,23 +246,6 @@ struct MainView: View {
     /// any existing keyword (also `|`-joined), and force-enables Regex so the
     /// alternation is honored. Mutating `filterCondition` triggers the existing
     /// `onChange` handler, which runs the search and auto-opens the split.
-    private func applyPreset(words: [String]) {
-        let newWords = words
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        guard !newWords.isEmpty else { return }
-
-        // Treat the current keyword as `|`-separated tokens and only append words
-        // not already present, so re-applying the same group/word doesn't pile up
-        // duplicates (e.g. `a|b` clicked twice stays `a|b`).
-        var tokens = currentKeywordTokens()
-        for word in newWords where !tokens.contains(word) {
-            tokens.append(word)
-        }
-
-        setKeywordTokens(tokens)
-    }
-
     /// Applying a whole group syncs that group's contribution to the search box:
     /// removes any of the group's words first (dropping ones just unchecked),
     /// then re-adds its enabled words. Tokens from other sources (manual input
@@ -401,8 +384,7 @@ struct MainView: View {
                 HSplitView {
                     PresetSidebarView(
                         store: presetStore,
-                        onApplyGroup: { applyPresetGroup($0) },
-                        onApplyWord: { applyPreset(words: [$0]) }
+                        onApplyGroup: { applyPresetGroup($0) }
                     )
                     logArea
                 }
