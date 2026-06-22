@@ -708,22 +708,6 @@ struct FilterResultView: View {
     /// The file path of the currently opened log file.
     let fileName: String
 
-    /// Builds the line preview with each match fragment given a yellow
-    /// background, mirroring the main view's highlight.
-    private func highlighted(_ content: String, lineID: Int) -> AttributedString {
-        var attributed = AttributedString(content)
-        for range in searchRanges(lineID) {
-            guard range.location >= 0, range.location + range.length <= (content as NSString).length,
-                  let swiftRange = Range(range, in: content) else { continue }
-            let lowerOffset = content.distance(from: content.startIndex, to: swiftRange.lowerBound)
-            let upperOffset = content.distance(from: content.startIndex, to: swiftRange.upperBound)
-            let lower = attributed.index(attributed.startIndex, offsetByCharacters: lowerOffset)
-            let upper = attributed.index(attributed.startIndex, offsetByCharacters: upperOffset)
-            attributed[lower..<upper].backgroundColor = Color(nsColor: .systemYellow)
-        }
-        return attributed
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
@@ -753,22 +737,20 @@ struct FilterResultView: View {
                             Button {
                                 onResultSelected(index)
                             } label: {
-                                HStack(alignment: .top, spacing: 0) {
-                                    Text("\(result.line.id)")
-                                        .font(.system(.caption, design: .monospaced))
-                                        .foregroundColor(.secondary)
-                                        .frame(width: 50, alignment: .trailing)
-                                        .padding(.trailing, 6)
-
-                                    Text(highlighted(result.line.content, lineID: result.line.id))
-                                        .font(.system(.body, design: .monospaced))
-                                        .lineLimit(1)
-                                        .textSelection(.enabled)
-
-                                    Spacer()
-                                }
-                                .padding(.vertical, 2)
-                                .padding(.horizontal, 4)
+                                // The whole row (line number + content) is rendered
+                                // by one AppKit view so the two columns share the
+                                // same baseline, and the line is clipped instead of
+                                // truncated with an ellipsis — matching the main
+                                // view. The view is transparent to mouse events so
+                                // this SwiftUI Button still receives the click.
+                                FilterRowView(
+                                    lineNumber: result.line.id,
+                                    content: result.line.content,
+                                    ranges: searchRanges(result.line.id)
+                                )
+                                .frame(height: 18)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.vertical, 1)
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
@@ -780,6 +762,94 @@ struct FilterResultView: View {
             }
         }
         .frame(minWidth: 200)
+    }
+}
+
+/// A single filter-result row rendered entirely with AppKit: a right-aligned
+/// line-number gutter plus the line content. The content is clipped
+/// (`.byClipping`) rather than tail-truncated with an ellipsis, with each match
+/// fragment given a yellow background — mirroring the main view. Rendering both
+/// columns in one view keeps them on a shared baseline. The view ignores mouse
+/// events so the enclosing SwiftUI Button still handles the click-to-jump.
+struct FilterRowView: NSViewRepresentable {
+    let lineNumber: Int
+    let content: String
+    let ranges: [NSRange]
+
+    func makeNSView(context: Context) -> FilterRowNSView { FilterRowNSView() }
+
+    func updateNSView(_ view: FilterRowNSView, context: Context) {
+        view.configure(lineNumber: lineNumber, content: content, ranges: ranges)
+    }
+}
+
+final class FilterRowNSView: NSView {
+    private let lineLabel = NSTextField(labelWithString: "")
+    private let contentLabel = NSTextField(labelWithString: "")
+    private let gutterWidth: CGFloat = 50
+    private let gutterGap: CGFloat = 6
+
+    private static let lineFont = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
+    private static let contentFont = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
+    private static let paragraphStyle: NSParagraphStyle = {
+        let style = NSMutableParagraphStyle()
+        style.lineBreakMode = .byClipping
+        return style
+    }()
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+
+        lineLabel.font = FilterRowNSView.lineFont
+        lineLabel.textColor = .secondaryLabelColor
+        lineLabel.alignment = .right
+        lineLabel.isBezeled = false
+        lineLabel.drawsBackground = false
+        lineLabel.isEditable = false
+        lineLabel.isSelectable = false
+        addSubview(lineLabel)
+
+        contentLabel.isBezeled = false
+        contentLabel.drawsBackground = false
+        contentLabel.isEditable = false
+        contentLabel.isSelectable = false
+        contentLabel.usesSingleLineMode = true
+        contentLabel.lineBreakMode = .byClipping
+        contentLabel.cell?.usesSingleLineMode = true
+        contentLabel.cell?.lineBreakMode = .byClipping
+        addSubview(contentLabel)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    /// Transparent to mouse events so clicks fall through to the SwiftUI Button
+    /// wrapping this row (otherwise the text fields would swallow the tap).
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    override func layout() {
+        super.layout()
+        lineLabel.frame = NSRect(x: 0, y: 0, width: gutterWidth, height: bounds.height)
+        let contentX = gutterWidth + gutterGap
+        contentLabel.frame = NSRect(x: contentX, y: 0,
+                                    width: max(bounds.width - contentX, 0),
+                                    height: bounds.height)
+    }
+
+    func configure(lineNumber: Int, content: String, ranges: [NSRange]) {
+        lineLabel.stringValue = "\(lineNumber)"
+
+        let attributed = NSMutableAttributedString(string: content)
+        let nsLength = (content as NSString).length
+        let fullRange = NSRange(location: 0, length: nsLength)
+        attributed.addAttribute(.font, value: FilterRowNSView.contentFont, range: fullRange)
+        attributed.addAttribute(.foregroundColor, value: NSColor.labelColor, range: fullRange)
+        attributed.addAttribute(.paragraphStyle, value: FilterRowNSView.paragraphStyle, range: fullRange)
+        for range in ranges where range.location >= 0 && range.location + range.length <= nsLength {
+            attributed.addAttribute(.backgroundColor, value: NSColor.systemYellow, range: range)
+        }
+        contentLabel.attributedStringValue = attributed
     }
 }
 
